@@ -4,6 +4,12 @@
 
 ### Added
 
+- True-color half-block rendering: `c` (or `etaf-ascii-video-set-color`) draws
+  two full color pixels per character cell with `▀`, so color mode doubles the
+  vertical resolution and keeps the video's colors. `etaf-ascii-video-color`
+  picks the default mode for new players and `etaf-ascii-video-color-columns`
+  caps the fitted width, because each colored cell costs one `face` property
+  per published frame.
 - Pure ASCII video playback in an ETAF buffer: ffmpeg decodes and downsamples
   each frame to raw grayscale bytes, the player maps every pixel to one
   character of a density ramp, and each displayed frame is published as one

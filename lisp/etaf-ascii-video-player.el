@@ -87,7 +87,7 @@ so a dropped display frame still advances the clock."
 
 (defun etaf-ascii-video--player-hud (player)
   "Return PLAYER's one-line status text."
-  (format "%s %s/%s  %dfps  %.1fms  dropped %d  %dx%d  %sx"
+  (format "%s %s/%s  %dfps  %.1fms  dropped %d  %dx%d  %s  %sx"
           (cond ((etaf-ascii-video--player-error player) "error")
                 ((etaf-ascii-video--player-ended player) "ended")
                 ((etaf-ascii-video--player-stepping player) "step")
@@ -101,6 +101,9 @@ so a dropped display frame still advances the clock."
           (etaf-ascii-video--player-dropped player)
           (etaf-ascii-video--player-columns player)
           (etaf-ascii-video--player-rows player)
+          (if (plist-get (etaf-ascii-video--player-spec player) :color)
+              "color"
+            "mono")
           (format "%s" (etaf-ascii-video--player-speed player))))
 
 (cl-defun etaf-ascii-video--player-create (buffer spec columns rows)
@@ -164,12 +167,16 @@ but the status line must follow."
       (progn
         (let ((begin (float-time)))
           (setf (etaf-ascii-video--player-grid-text player)
-                (etaf-ascii-video--grid-text
-                 frame (etaf-ascii-video--player-columns player)
-                 (etaf-ascii-video--player-rows player)
-                 (and (etaf-ascii-video--player-source player)
-                      (etaf-ascii-video--source-work
-                       (etaf-ascii-video--player-source player)))))
+                (if (plist-get (etaf-ascii-video--player-spec player) :color)
+                    (etaf-ascii-video--color-grid-text
+                     frame (etaf-ascii-video--player-columns player)
+                     (etaf-ascii-video--player-rows player))
+                  (etaf-ascii-video--grid-text
+                   frame (etaf-ascii-video--player-columns player)
+                   (etaf-ascii-video--player-rows player)
+                   (and (etaf-ascii-video--player-source player)
+                        (etaf-ascii-video--source-work
+                         (etaf-ascii-video--player-source player))))))
           (etaf-ascii-video--player-present
            player (etaf-ascii-video--player-grid-text player)
            (setf (etaf-ascii-video--player-hud-text player)
@@ -324,6 +331,19 @@ a resume or step can seek back instead of catching up to wall-clock time."
           (etaf-ascii-video--player-restart player)
           (etaf-ascii-video--player-play player))
       (etaf-ascii-video--player-refresh player))))
+
+(defun etaf-ascii-video--player-set-color (player color)
+  "Turn PLAYER's true-color half-block mode on or off and restart decoding."
+  (unless (eq (and (plist-get (etaf-ascii-video--player-spec player) :color) t)
+              (and color t))
+    (setf (plist-get (etaf-ascii-video--player-spec player) :color) (and color t))
+    (let ((playing (etaf-ascii-video--player-playing player)))
+      (if playing
+          (progn
+            (etaf-ascii-video--player-restart player)
+            (etaf-ascii-video--player-play player))
+        (etaf-ascii-video--player-stop-source player)
+        (etaf-ascii-video--player-refresh player)))))
 
 (defun etaf-ascii-video--player-set-grid (player columns rows)
   "Resize PLAYER's canvas to COLUMNS by ROWS and restart its producer."

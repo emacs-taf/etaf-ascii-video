@@ -27,16 +27,31 @@ number instead of a hopeful one.
 
 ## Rendering
 
-Each frame is decoded at the canvas size and converted to raw grayscale bytes
-by ffmpeg, then mapped in Emacs: every byte picks one character of
-`etaf-ascii-video-density-ramp` from darkest to lightest. Rows are joined with
-newlines and the whole text replaces the canvas Host through ETAF's retained
-content boundary. Text carries no per-pixel properties, so mapping and
-publication stay proportional to the canvas, not to the encoded frame.
+Each frame is decoded at the canvas size by ffmpeg, then mapped in Emacs.  The
+monochrome mode converts the frame to raw grayscale bytes and every byte picks
+one character of `etaf-ascii-video-density-ramp` from darkest to lightest.
+True-color half-block mode (`c`, `etaf-ascii-video-set-color`) converts the
+frame to RGB24 at `columns` by `rows * 2` pixels: the top pixel of each cell
+becomes the foreground of `▀` and the bottom pixel its background, so one
+character cell shows two full color pixels.  Rows are joined with newlines and
+the whole text replaces the canvas Host through ETAF's retained content
+boundary.
 
 The default ramp is ` .:-=+*#%@`; a longer or shorter ramp changes the number
 of visible levels, and the change applies to the next frame. The ramp must be
-nonempty and single-line.
+nonempty and single-line.  Color mode ignores the ramp.
+
+The monochrome canvas carries no per-pixel properties.  Color mode carries one
+`face` property per cell, so its publication cost grows with the cell count
+(measured on the reference machine: about 53 ms per 48x14 frame and 132 ms per
+80x24 frame, versus roughly 8 ms for a monochrome 160x45 frame).
+color-columns` (default 32) caps the fitted color width so a new player stays
+responsive; raise it for a sharper but slower picture, including with
+`etaf-ascii-video-set-grid`.  Graphical sessions with real fonts measured
+about 35 ms of publication for a 32x11 color frame (about 14 fps with
+redisplay) and about 160 ms for 64x22 before the width-cache fix; the
+monochrome mode keeps millisecond-scale updates at the full window and is the
+smooth choice today.
 
 Character cells are about twice as tall as wide, so the default fitting keeps
 the video aspect ratio by sampling `rows * aspect * 2` columns. The built-in
@@ -50,6 +65,7 @@ are 640x360 when ffprobe is unavailable.
 | `f`, `b` | +5 s / -5 s |
 | `+`, `-` | next / previous rate |
 | `1` .. `4` | 64, 96, 128, 176 columns |
+| `c` | toggle true-color half-block rendering |
 | `F` | fit to the window |
 | `o`, `d` | open a file / demo |
 | `?`, `q` | help / close |
@@ -81,7 +97,9 @@ detached plist; the interesting keys are `:playing`, `:position`, `:duration`,
 
 | Variable | Meaning |
 | --- | --- |
-| `etaf-ascii-video-density-ramp` | pixel characters, darkest to lightest |
+| `etaf-ascii-video-density-ramp` | pixel characters, darkest to lightest (monochrome mode) |
+| `etaf-ascii-video-color` | whether new players start in true-color half-block mode |
+| `etaf-ascii-video-color-columns` | color-mode fitted column cap, default 32; nil fits the window |
 | `etaf-ascii-video-display-fps` | display timer rate, default 30 |
 | `etaf-ascii-video-grid-presets` | character to canvas width, used by `1`-`4` |
 | `etaf-ascii-video-ffmpeg-program` | ffmpeg name or path; use a wrapper to add decoder options |

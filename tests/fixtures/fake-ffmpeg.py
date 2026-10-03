@@ -22,6 +22,16 @@ import sys
 import time
 
 
+def value_for(pattern, x, width, index):
+    """Return the deterministic pattern value for one pixel."""
+    span = max(1, width - 1)
+    if pattern == "flash":
+        return 255 if index % 2 == 0 else 0
+    if pattern == "shift":
+        return ((x + index) % width) * 255 // span
+    return x * 255 // span
+
+
 def main():
     argv = sys.argv[1:]
     log = os.environ.get("FAKE_FFMPEG_LOG")
@@ -39,21 +49,28 @@ def main():
     frames = int(os.environ.get("FAKE_FFMPEG_FRAMES", "40"))
     interval = float(os.environ.get("FAKE_FFMPEG_INTERVAL", "0.02"))
     pattern = os.environ.get("FAKE_FFMPEG_PATTERN", "columns")
+    pixel_format = "gray"
+    for index, argument in enumerate(argv):
+        if argument == "-pix_fmt" and index + 1 < len(argv):
+            pixel_format = argv[index + 1]
 
     out = sys.stdout.buffer
-    span = max(1, width - 1)
-    for index in range(frames):
+    for frame_index in range(frames):
         frame = bytearray()
-        for _row in range(height):
-            row = bytearray(width)
+        for y in range(height):
+            row = bytearray()
             for x in range(width):
-                if pattern == "flash":
-                    value = 255 if index % 2 == 0 else 0
-                elif pattern == "shift":
-                    value = ((x + index) % width) * 255 // span
+                value = value_for(pattern, x, width, frame_index)
+                if pixel_format == "rgb24":
+                    # Even scanlines carry the value in gray; odd scanlines
+                    # invert red and keep blue, so a half-block cell has two
+                    # distinguishable colors.
+                    if y % 2 == 0:
+                        row.extend((value, value, value))
+                    else:
+                        row.extend((255 - value, 0, value))
                 else:
-                    value = x * 255 // span
-                row[x] = value
+                    row.append(value)
             frame.extend(row)
         out.write(bytes(frame))
         out.flush()

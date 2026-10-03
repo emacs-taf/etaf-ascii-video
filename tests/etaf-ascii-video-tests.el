@@ -372,6 +372,45 @@ no buffer behind."
       (ignore-errors (delete-file log))
       (etaf-ascii-video-tests--cleanup))))
 
+(ert-deftest etaf-ascii-video-tests-color-half-blocks ()
+  "Color mode publishes half-block cells with per-cell true colors.
+The fixture's RGB24 pattern makes each cell's foreground and background
+predictable, the status line reports the mode, and turning color off returns
+the player to density characters."
+  (etaf-ascii-video-tests--cleanup)
+  (let ((log (etaf-ascii-video-tests--log)))
+    (unwind-protect
+        (etaf-ascii-video-tests--with-fixture
+         log
+         (list "FAKE_FFMPEG_PATTERN=columns"
+               "FAKE_FFMPEG_FRAMES=400"
+               "FAKE_FFMPEG_INTERVAL=0.02"
+               "FAKE_FFPROBE_DURATION=4.0"
+               "FAKE_FFPROBE_FPS=50/1")
+         (etaf-ascii-video-open
+          (list :file etaf-ascii-video-tests--input :columns 16 :rows 4 :color t))
+         (should (etaf-ascii-video-tests--wait
+                  (lambda () (>= (plist-get (etaf-ascii-video-tests--state) :presented) 1))))
+         (should (plist-get (etaf-ascii-video-tests--state) :color))
+         (with-current-buffer "*ASCII Video*"
+           (let* ((text (buffer-string))
+                  (line (substring text 0 (string-match "\n" text))))
+             (should (= 16 (length (cl-remove-if-not (lambda (char) (eq char ?▀)) line))))
+             (should (member '(:foreground "#000000" :background "#ff0000")
+                             (get-text-property 0 'face line)))
+             (should (member '(:foreground "#111111" :background "#ee0011")
+                             (get-text-property 1 'face line))))
+           (should (string-match-p "color" (buffer-string))))
+         (etaf-ascii-video-set-color nil)
+         (should-not (plist-get (etaf-ascii-video-tests--state) :color))
+         (should (etaf-ascii-video-tests--wait
+                  (lambda ()
+                    (with-current-buffer "*ASCII Video*"
+                      (not (string-match-p "▀" (buffer-string)))))))
+         (etaf-ascii-video-close))
+      (ignore-errors (delete-file log))
+      (etaf-ascii-video-tests--cleanup))))
+
 (ert-deftest etaf-ascii-video-tests-plays-demo-with-real-ffmpeg ()
   "The built-in demo plays through a real ffmpeg when one is installed.
 This scenario is skipped on machines without ffmpeg; the fixture scenarios

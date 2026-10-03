@@ -26,6 +26,21 @@
 Keys are characters, values are canvas widths in character cells; the row
 count follows the video aspect.")
 
+(defvar etaf-ascii-video-color nil
+  "Whether new players start in true-color half-block mode.
+Nil renders one density-ramp character per pixel.  Non-nil renders two full
+color pixels per character cell with `▀': the top pixel becomes the
+foreground and the bottom pixel the background, so color mode doubles the
+vertical resolution and keeps the video's colors.")
+
+(defvar etaf-ascii-video-color-columns 32
+  "Column limit used when a true-color player fits a new window.
+Nil fits the window like the monochrome mode.  Color content carries one
+`face' property per cell and EBox publishes one property operation per run,
+so larger grids cost proportionally more per frame; 32 columns keeps color
+playback responsive (about 14 frames per second in a graphical session) and
+can be raised for sharper, slower pictures.")
+
 (defvar etaf-ascii-video-mode-map
   (let ((map (make-sparse-keymap)))
     (define-key map (kbd "SPC") #'etaf-ascii-video-toggle-playback)
@@ -39,6 +54,7 @@ count follows the video aspect.")
     (define-key map (kbd "3") #'etaf-ascii-video--preset-command)
     (define-key map (kbd "4") #'etaf-ascii-video--preset-command)
     (define-key map (kbd "F") #'etaf-ascii-video-fit)
+    (define-key map (kbd "c") #'etaf-ascii-video--toggle-color-command)
     (define-key map (kbd "o") #'etaf-ascii-video-open-file)
     (define-key map (kbd "d") #'etaf-ascii-video-demo)
     (define-key map (kbd "?") #'etaf-ascii-video--help-command)
@@ -65,6 +81,7 @@ count follows the video aspect.")
            (define-key map (kbd "3") #'etaf-ascii-video--preset-command)
            (define-key map (kbd "4") #'etaf-ascii-video--preset-command)
            (define-key map (kbd "F") #'etaf-ascii-video-fit)
+           (define-key map (kbd "c") #'etaf-ascii-video--toggle-color-command)
            (define-key map (kbd "o") #'etaf-ascii-video-open-file)
            (define-key map (kbd "d") #'etaf-ascii-video-demo)
            (define-key map (kbd "?") #'etaf-ascii-video--help-command)
@@ -93,13 +110,15 @@ every application buffer owns, so the entry is active exactly there.")
         (/ (float width) height)
       (/ 16.0 9))))
 
-(defun etaf-ascii-video--window-grid (window aspect)
+(defun etaf-ascii-video--window-grid (window aspect &optional limit-columns)
   "Return the (COLUMNS . ROWS) fitting WINDOW for an ASPECT frame.
-One row is reserved for the status line."
+One row is reserved for the status line.  LIMIT-COLUMNS, when non-nil, caps
+the canvas width."
   (let* ((frame (window-frame window))
          (cell-aspect (/ (float (frame-char-height frame))
                          (max 1 (frame-char-width frame))))
          (max-columns (max 8 (window-body-width window)))
+         (max-columns (if limit-columns (min max-columns limit-columns) max-columns))
          (max-rows (max 3 (1- (window-body-height window)))))
     (etaf-ascii-video--fit-grid aspect max-columns max-rows cell-aspect)))
 
@@ -128,8 +147,10 @@ One row is reserved for the status line."
   "Fit PLAYER to WINDOW and republish its canvas size."
   (when-let* ((runtime (etaf-runtime-for-buffer (etaf-ascii-video--player-buffer player))))
     (etaf-runtime-refit runtime (window-body-width window t) (window-body-height window)))
-  (let ((grid (etaf-ascii-video--window-grid
-               window (etaf-ascii-video--aspect (etaf-ascii-video--player-spec player)))))
+  (let* ((spec (etaf-ascii-video--player-spec player))
+         (grid (etaf-ascii-video--window-grid
+                window (etaf-ascii-video--aspect spec)
+                (and (plist-get spec :color) etaf-ascii-video-color-columns))))
     (unless (equal grid (cons (etaf-ascii-video--player-columns player)
                               (etaf-ascii-video--player-rows player)))
       (etaf-ascii-video--player-set-grid player (car grid) (cdr grid)))))
@@ -149,7 +170,9 @@ The canvas is fitted to the selected window unless SOURCE carries `:columns'
 and `:rows'."
   (interactive (list (let ((name (read-file-name "Video file (empty for demo): " nil nil nil)))
                        (if (string-empty-p name) nil name))))
-  (let ((spec (etaf-ascii-video--normalize-source source)))
+  (let* ((spec (etaf-ascii-video--normalize-source source))
+         (spec (plist-put spec :color
+                          (and (or (plist-get spec :color) etaf-ascii-video-color) t))))
     (when (get-buffer etaf-ascii-video--buffer-name)
       (with-current-buffer (get-buffer etaf-ascii-video--buffer-name)
         (when etaf-ascii-video--player
@@ -159,7 +182,9 @@ and `:rows'."
            (grid (if (and (integerp (plist-get spec :columns))
                           (integerp (plist-get spec :rows)))
                      (cons (plist-get spec :columns) (plist-get spec :rows))
-                   (etaf-ascii-video--window-grid window (etaf-ascii-video--aspect spec))))
+                   (etaf-ascii-video--window-grid
+                    window (etaf-ascii-video--aspect spec)
+                    (and (plist-get spec :color) etaf-ascii-video-color-columns))))
            (player (etaf-ascii-video--player-create buffer spec (car grid) (cdr grid))))
       (condition-case problem
           (progn
@@ -245,6 +270,14 @@ and `:rows'."
   (etaf-ascii-video--player-set-speed (etaf-ascii-video--current) speed)
   t)
 
+(defun etaf-ascii-video-set-color (color)
+  "Turn true-color half-block rendering on (non-nil) or off (nil).
+Color mode renders two full color pixels per character cell with `▀' and
+doubles the vertical resolution at the cost of one `face' per cell."
+  (interactive "P")
+  (etaf-ascii-video--player-set-color (etaf-ascii-video--current) color)
+  t)
+
 (defun etaf-ascii-video-set-grid (columns rows)
   "Resize the current player's canvas to COLUMNS by ROWS cells."
   (interactive "nColumns: \nnRows: ")
@@ -265,8 +298,9 @@ and `:rows'."
 (defun etaf-ascii-video-state ()
   "Return the current player's state as a detached plist.
 Keys are `:source', `:playing', `:position', `:duration', `:speed',
-`:columns', `:rows', `:fps' (display rate), `:presented-fps', `:source-fps',
-`:received', `:presented', `:dropped', `:frame-ms' and `:ended'."
+`:columns', `:rows', `:color', `:fps' (display rate), `:presented-fps',
+`:source-fps', `:received', `:presented', `:dropped', `:frame-ms' and
+`:ended'."
   (let* ((player (etaf-ascii-video--current))
          (spec (etaf-ascii-video--player-spec player)))
     (list :source (pcase (plist-get spec :kind)
@@ -278,6 +312,7 @@ Keys are `:source', `:playing', `:position', `:duration', `:speed',
           :speed (etaf-ascii-video--player-speed player)
           :columns (etaf-ascii-video--player-columns player)
           :rows (etaf-ascii-video--player-rows player)
+          :color (and (plist-get spec :color) t)
           :fps etaf-ascii-video-display-fps
           :presented-fps (etaf-ascii-video--player-presented-fps player)
           :source-fps (plist-get spec :fps)
@@ -330,11 +365,18 @@ Keys are `:source', `:playing', `:position', `:duration', `:speed',
      (etaf-ascii-video--rows-for-columns
       (etaf-ascii-video--aspect (etaf-ascii-video--player-spec player)) columns))))
 
+(defun etaf-ascii-video--toggle-color-command ()
+  "Toggle true-color half-block rendering."
+  (interactive)
+  (let* ((player (etaf-ascii-video--current))
+         (spec (etaf-ascii-video--player-spec player)))
+    (etaf-ascii-video--player-set-color player (not (plist-get spec :color)))))
+
 (defun etaf-ascii-video--help-command ()
   "Show the ASCII video key bindings."
   (interactive)
   (message (concat "ASCII video: SPC play/pause, n step, f/b +-5s, +/- speed, "
-                   "1-4 grid, F fit, o open, d demo, q close")))
+                   "1-4 grid, c color, F fit, o open, d demo, q close")))
 
 (provide 'etaf-ascii-video-app)
 ;;; etaf-ascii-video-app.el ends here

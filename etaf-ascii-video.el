@@ -25,7 +25,7 @@
 ;; functions below drive it, `etaf-ascii-video-state' reports it as plain
 ;; data, and `etaf-ascii-video-close' releases it.  The default keymap binds
 ;; the same commands: SPC play/pause, n step, f/b seek five seconds, +/- speed,
-;; 1-4 grid presets, F fit, o open, d demo, ? help and q close.
+;; 1-4 grid presets, c color, F fit, o open, d demo, ? help and q close.
 ;;
 ;; Only the interfaces listed below are supported for use by other packages.
 ;; All unlisted symbols and implementation features are internal, including
@@ -76,6 +76,15 @@
 ;; The producer is restarted at the current position; the display rate stays
 ;; `etaf-ascii-video-display-fps' and extra decoded frames are dropped.
 ;;
+;; Function: etaf-ascii-video-set-color (color)
+;; Turn true-color half-block rendering on (non-nil) or off (nil).
+;; Color mode renders two full color pixels per character cell with `▀': the
+;; top pixel is the foreground and the bottom pixel the background, so it
+;; doubles the vertical resolution and keeps the video's colors.  It carries
+;; one `face' property per cell, so it publishes slower than the monochrome
+;; density-ramp mode; `etaf-ascii-video-color-columns' caps the fitted width.
+;; The producer restarts at the current position in the new mode.
+;;
 ;; Function: etaf-ascii-video-set-grid (columns rows)
 ;; Resize the canvas to COLUMNS by ROWS character cells.
 ;; The producer restarts at the current position with the new scale, so the
@@ -98,6 +107,17 @@
 ;; Characters used for one video pixel, darkest to lightest.
 ;; The default is " .:-=+*#%@"; it must be nonempty and single-line, and a
 ;; change takes effect on the next rendered frame.
+;;
+;; Variable: etaf-ascii-video-color
+;; Whether new players start in true-color half-block mode.
+;; Nil (the default) renders one monochrome density character per pixel;
+;; non-nil renders two full color pixels per character cell with `▀'.
+;;
+;; Variable: etaf-ascii-video-color-columns
+;; Column limit used when a true-color player fits a new window.
+;; Nil fits the window like the monochrome mode.  The default is 32, because
+;; color content costs one `face' property per cell and EBox publishes one
+;; property operation per run; raise it for sharper, slower color.
 ;;
 ;; Variable: etaf-ascii-video-display-fps
 ;; Display timer rate in frames per second.

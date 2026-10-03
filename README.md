@@ -13,8 +13,10 @@ the playback rate, so the incremental behavior is visible while it runs.
 
 - Playback of local video files through ffmpeg; the built-in demo generates a
   test pattern with ffmpeg's `lavfi` input, so no file is needed.
-- Pure ASCII rendering with a configurable density ramp
-  (`etaf-ascii-video-density-ramp`, default ` .:-=+*#%@`).
+- Two rendering modes. The default monochrome mode maps each pixel to one
+  density-ramp character. True-color half-block mode (`c`) renders two full
+  color pixels per character cell with `▀` (top pixel as foreground, bottom as
+  background), keeping the video's colors at double the vertical resolution.
 - A canvas that fits the window (and follows resizes), four grid presets, and
   explicit `etaf-ascii-video-set-grid` for scripts.
 - Play, pause, single frame stepping, seeking, and 0.5x to 8x rates.
@@ -53,6 +55,7 @@ dimensions and rate and the status line shows no total duration.
 (etaf-ascii-video-demo)                 ; generated test pattern, no file
 (etaf-ascii-video-open-file "clip.mp4") ; a local video
 (etaf-ascii-video-open '(:file "clip.mp4" :columns 120 :rows 34 :speed 2))
+(etaf-ascii-video-open '(:file "clip.mp4" :color t)) ; two color pixels per cell
 ```
 
 ## Keys
@@ -64,6 +67,7 @@ dimensions and rate and the status line shows no total duration.
 | `f` / `b` | seek five seconds forward or backward |
 | `+` / `-` | raise or lower the playback rate |
 | `1` .. `4` | grid presets (64, 96, 128, 176 columns, rows follow the aspect) |
+| `c` | toggle true-color half-block rendering |
 | `F` | fit the canvas to the window |
 | `o` / `d` | open a file / replay the built-in demo |
 | `?` / `q` | help / close |

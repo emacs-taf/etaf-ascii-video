@@ -98,22 +98,27 @@ cells) and `:speed' (playback rate).  The result holds `:kind', `:file',
             :fps fps
             :columns (plist-get source :columns)
             :rows (plist-get source :rows)
-            :speed (plist-get source :speed)))))
+            :speed (plist-get source :speed)
+            :color (plist-get source :color)))))
 
 (defun etaf-ascii-video--ffmpeg-arguments (spec columns rows speed start)
-  "Return ffmpeg arguments for SPEC at COLUMNS by ROWS.
-SPEED is the `-readrate' factor; START is the seek position in seconds.
-The output is one raw grayscale frame per COLUMNS times ROWS bytes."
-  (append (list "-hide_banner" "-loglevel" "error")
-          (when (and (numberp start) (> start 0))
-            (list "-ss" (number-to-string start)))
-          (list "-readrate" (number-to-string speed))
-          (pcase (plist-get spec :kind)
-            ('file (list "-i" (plist-get spec :file)))
-            ('demo (list "-f" "lavfi" "-i" "testsrc2=size=640x360:rate=30" "-t" "30"))
-            (_ (user-error "Cannot build ffmpeg arguments for %S" spec)))
-          (list "-vf" (format "scale=%d:%d:flags=area" columns rows)
-                "-f" "rawvideo" "-pix_fmt" "gray" "-")))
+  "Return ffmpeg arguments for SPEC at COLUMNS by ROWS character cells.
+SPEED is the `-readrate' factor; START is the seek position in seconds.  The
+monochrome output is one grayscale byte per cell; with `:color' the output is
+COLUMNS by twice ROWS RGB24 pixels, one character cell per two pixels."
+  (let ((color (plist-get spec :color)))
+    (append (list "-hide_banner" "-loglevel" "error")
+            (when (and (numberp start) (> start 0))
+              (list "-ss" (number-to-string start)))
+            (list "-readrate" (number-to-string speed))
+            (pcase (plist-get spec :kind)
+              ('file (list "-i" (plist-get spec :file)))
+              ('demo (list "-f" "lavfi" "-i" "testsrc2=size=640x360:rate=30" "-t" "30"))
+              (_ (user-error "Cannot build ffmpeg arguments for %S" spec)))
+            (list "-vf" (if color
+                            (format "scale=%d:%d:flags=area" columns (* 2 rows))
+                          (format "scale=%d:%d:flags=area" columns rows))
+                  "-f" "rawvideo" "-pix_fmt" (if color "rgb24" "gray") "-"))))
 
 (defun etaf-ascii-video--source-filter (process chunk)
   "Accumulate CHUNK into complete frames; the newest complete frame wins."
@@ -148,7 +153,9 @@ signals `user-error' before any process exists."
                                  etaf-ascii-video-ffmpeg-program)))
         (pipe (generate-new-buffer " *etaf-ascii-video pipe*"))
         (work (generate-new-buffer " *etaf-ascii-video map*"))
-        (frame-size (* columns rows))
+        (frame-size (if (plist-get spec :color)
+                        (* columns rows 2 3)
+                      (* columns rows)))
         (process nil))
     (setq process
           (make-process

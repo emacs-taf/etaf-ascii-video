@@ -10,7 +10,7 @@ here: the hot path is ETAF's public retained Host content boundary
 
 | Module | Owns |
 | --- | --- |
-| `etaf-ascii-video-grid` | aspect fitting and the raw byte to ramp character mapping |
+| `etaf-ascii-video-grid` | aspect fitting and the pixel mapping, both the grayscale density ramp and the true-color half-block grid |
 | `etaf-ascii-video-source` | source normalization, ffprobe metadata, ffmpeg arguments, the binary process and the latest-frame buffer |
 | `etaf-ascii-video-player` | refs, display timer, frame presentation, playback controls, status line text |
 | `etaf-ascii-video-app` | buffer, View, keymap, window fitting, mount/unmount, public commands |
@@ -46,8 +46,10 @@ internal.
   write buffer text directly.
 - **One publication per displayed frame.** A frame updates the canvas Host and
   the status Host in one `etaf-runtime-update-host-contents` call, which is one
-  retained Ebox publication rather than an ordinary ETAF render. No per-pixel
-  text properties are created.
+  retained Ebox publication rather than an ordinary ETAF render. The
+  monochrome grid creates no per-pixel properties; the color grid carries one
+  `face` property per cell, so its publication work is proportional to the
+  cell count and it publishes slower.
 - **Latest frame wins.** The filter retains at most one complete frame; a slow
   display drops frames and the clock advances from delivered frames, so
   playback never replays a backlog.
@@ -83,3 +85,12 @@ for 30. The gap between the batch publication cost and the GUI session is
 redisplay and font work outside the publication call. Quantifying and
 reducing it is the framework-probe work this application exists to drive, not
 a capability this application claims to have solved.
+
+Color mode was measured separately, because EBox's retained content
+publication performs one property operation per `face` run. Batch medians for
+one frame: 48x14 (672 cells) 53 ms, 64x18 (1152 cells) 81 ms, 80x24 (1920
+cells) 132 ms, 160x45 (7200 cells) 567 ms, against about 8 ms for a
+monochrome 160x45 frame with no per-cell properties. Each colored frame
+reports `span-patch` / `owner-scoped`, one dirty node, one patch, no full-root
+publication and one property operation per cell. Reducing that per-cell cost
+is the next framework-probe task.
