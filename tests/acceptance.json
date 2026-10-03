@@ -55,6 +55,11 @@
       "purpose": "Graphics mode publishes one JPEG image display per frame and reports the graphics mode in the status line."
     },
     {
+      "name": "etaf-ascii-video-tests-streams-http-url",
+      "file": "tests/etaf-ascii-video-tests.el",
+      "purpose": "An HTTP(S) URL reaches ffmpeg as a stream with reconnect options while non-HTTP schemes are rejected."
+    },
+    {
       "name": "etaf-ascii-video-tests-plays-demo-with-real-ffmpeg",
       "file": "tests/etaf-ascii-video-tests.el",
       "purpose": "The built-in demo plays through a real ffmpeg when one is installed, producing the requested line shape."

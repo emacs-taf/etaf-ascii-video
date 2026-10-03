@@ -442,6 +442,39 @@ frame check, verifies the image display property and the status mode."
       (ignore-errors (delete-file log))
       (etaf-ascii-video-tests--cleanup))))
 
+(ert-deftest etaf-ascii-video-tests-streams-http-url ()
+  "An HTTP(S) URL is passed to ffmpeg as a stream, not opened as a file.
+The fixture stands in for ffmpeg, so the recorded input and reconnect options
+are checked without touching the network; non-HTTP schemes are rejected."
+  (etaf-ascii-video-tests--cleanup)
+  (let ((log (etaf-ascii-video-tests--log)))
+    (unwind-protect
+        (etaf-ascii-video-tests--with-fixture
+         log
+         (list "FAKE_FFMPEG_PATTERN=columns"
+               "FAKE_FFMPEG_FRAMES=40"
+               "FAKE_FFMPEG_INTERVAL=0.02"
+               "FAKE_FFPROBE_DURATION=4.0"
+               "FAKE_FFPROBE_FPS=50/1")
+         (etaf-ascii-video-open-url "https://example.invalid/video.mp4")
+         (should (etaf-ascii-video-tests--wait
+                  (lambda () (>= (plist-get (etaf-ascii-video-tests--state) :presented) 1))))
+         (should (equal "https://example.invalid/video.mp4"
+                        (plist-get (etaf-ascii-video-tests--state) :source)))
+         (let ((runs (etaf-ascii-video-tests--runs log)))
+           (should (cl-some (lambda (arguments)
+                              (member "https://example.invalid/video.mp4" arguments))
+                            runs))
+           (should (cl-some (lambda (arguments)
+                              (equal (etaf-ascii-video-tests--argument arguments "-reconnect")
+                                     "1"))
+                            runs)))
+         (should-error (etaf-ascii-video-open-url "ftp://example.invalid/v.mp4")
+                       :type 'user-error)
+         (etaf-ascii-video-close))
+      (ignore-errors (delete-file log))
+      (etaf-ascii-video-tests--cleanup))))
+
 (ert-deftest etaf-ascii-video-tests-plays-demo-with-real-ffmpeg ()
   "The built-in demo plays through a real ffmpeg when one is installed.
 This scenario is skipped on machines without ffmpeg; the fixture scenarios

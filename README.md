@@ -13,6 +13,8 @@ the playback rate, so the incremental behavior is visible while it runs.
 
 - Playback of local video files through ffmpeg; the built-in demo generates a
   test pattern with ffmpeg's `lavfi` input, so no file is needed.
+- HTTP(S) video URLs play as streams: ffmpeg decodes them directly, nothing is
+  downloaded first, and a dropped connection is retried for five seconds.
 - Three rendering modes. The default monochrome mode maps each pixel to one
   density-ramp character. True-color half-block mode (`c`) renders two full
   color pixels per character cell with `▀` (top pixel as foreground, bottom as
@@ -56,8 +58,9 @@ dimensions and rate and the status line shows no total duration.
 ```elisp
 (etaf-ascii-video-demo)                 ; generated test pattern, no file
 (etaf-ascii-video-open-file "clip.mp4") ; a local video
+(etaf-ascii-video-open-url "https://example.com/clip.mp4") ; a network stream
 (etaf-ascii-video-open '(:file "clip.mp4" :columns 120 :rows 34 :speed 2))
-(etaf-ascii-video-open '(:file "clip.mp4" :color t)) ; two color pixels per cell
+(etaf-ascii-video-open '(:file "clip.mp4" :mode 'graphics)) ; image frames
 ```
 
 ## Keys
@@ -72,7 +75,7 @@ dimensions and rate and the status line shows no total duration.
 | `c` | toggle true-color half-block rendering |
 | `i` | toggle graphics (image) rendering |
 | `F` | fit the canvas to the window |
-| `o` / `d` | open a file / replay the built-in demo |
+| `o` / `u` / `d` | open a file / open a URL / replay the built-in demo |
 | `?` / `q` | help / close |
 
 ## Checks

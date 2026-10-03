@@ -2,8 +2,17 @@
 
 ## Unreleased
 
+### Fixed
+
+- The player buffer hides its cursor: a bar or box cursor on an image frame
+  was drawn as a border around the whole picture and blinked with the cursor.
+
 ### Added
 
+- HTTP(S) video URLs play as streams: `etaf-ascii-video-open-url` (`u`) and
+  `(:url "https://...")` hand the URL to ffmpeg, which decodes it directly;
+  a dropped connection is retried for five seconds and non-HTTP schemes are
+  rejected before any process starts.
 - Graphics rendering mode (`i`): ffmpeg emits one JPEG per frame at the
   canvas pixel size and the player publishes it as an image display. It needs
   a graphical frame and measured about 8.5 ms per frame at 136x48 (about 26

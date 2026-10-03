@@ -37,17 +37,25 @@
 ;; Function: etaf-ascii-video-open (&optional source)
 ;;;###autoload (autoload 'etaf-ascii-video-open "etaf-ascii-video" nil t)
 ;; Open the player and return its buffer.
-;; SOURCE is nil for the built-in demo, a file name, or a plist: `(:file
-;; PATH)' for a local video and `(:demo)' for the generated test pattern.
-;; Both accept the display hints `:columns' and `:rows' (canvas size in
-;; character cells) and `:speed' (playback rate).  The canvas is fitted to the
-;; selected window unless both hints are given.  An existing player is closed
-;; first; unreadable files and unsupported sources signal `user-error' before
-;; any process starts.
+;; SOURCE is nil for the built-in demo, a file name, an HTTP(S) URL, or a
+;; plist: `(:file PATH)' for a local video, `(:url URL)' for a network stream
+;; and `(:demo)' for the generated test pattern.  All forms accept the display
+;; hints `:columns' and `:rows' (canvas size in character cells), `:speed'
+;; (playback rate) and `:mode' (`mono', `color' or `graphics').  The canvas is
+;; fitted to the selected window unless both size hints are given.  An existing
+;; player is closed first; unreadable files, non-HTTP(S) URLs and unsupported
+;; sources signal `user-error' before any process starts.
 ;;
 ;; Function: etaf-ascii-video-open-file (file)
 ;;;###autoload (autoload 'etaf-ascii-video-open-file "etaf-ascii-video" nil t)
 ;; Play the local video FILE.
+;;
+;; Function: etaf-ascii-video-open-url (url)
+;;;###autoload (autoload 'etaf-ascii-video-open-url "etaf-ascii-video" nil t)
+;; Play the HTTP(S) video stream URL in the ASCII video player.
+;; ffmpeg decodes the stream directly, so nothing is downloaded first.
+;; Seeking needs server range support, and a dropped connection is retried for
+;; up to five seconds.  The audio track is not played.
 ;;
 ;; Function: etaf-ascii-video-demo ()
 ;;;###autoload (autoload 'etaf-ascii-video-demo "etaf-ascii-video" nil t)

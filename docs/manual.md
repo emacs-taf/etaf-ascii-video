@@ -2,11 +2,19 @@
 
 ## Playing a video
 
-`etaf-ascii-video-open-file` plays a local file; `etaf-ascii-video-demo` plays
-a generated 30 second test pattern and needs no file. Both create one buffer
-named `*ASCII Video*` and reuse it: opening another source closes the previous
-player first. `etaf-ascii-video-close` (also `q`) cancels the display timer,
-terminates ffmpeg and unmounts the ETAF Runtime.
+`etaf-ascii-video-open-file` plays a local file; `etaf-ascii-video-open-url`
+(`u`) plays an HTTP(S) URL as a stream: ffmpeg decodes it directly, so nothing
+is downloaded first.  Seeking needs the server to support range requests, and
+a dropped connection is retried for up to five seconds.  ffmpeg's HTTP reader
+reads the lowercase `http_proxy` environment variable when a proxy is needed.
+`etaf-ascii-video-demo` plays a generated 30 second test pattern and needs no
+file. All three create one buffer named `*ASCII Video*` and reuse it: opening
+another source closes the previous player first.  `etaf-ascii-video-close`
+(also `q`) cancels the display timer, terminates ffmpeg and unmounts the ETAF
+Runtime.
+
+The player buffer hides its cursor, so no cursor frame flashes around a
+graphics frame.
 
 Playback starts immediately. `SPC` pauses and resumes, `n` pauses and presents
 exactly one more frame, `f` and `b` seek five seconds, and `+`/`-` step through
@@ -72,7 +80,7 @@ are 640x360 when ffprobe is unavailable.
 | `c` | toggle true-color half-block rendering |
 | `i` | toggle graphics (image) rendering |
 | `F` | fit to the window |
-| `o`, `d` | open a file / demo |
+| `o`, `u`, `d` | open a file / open a URL / demo |
 | `?`, `q` | help / close |
 
 `F` and `etaf-ascii-video-fit` reserve one row for the status line and refit
@@ -122,7 +130,10 @@ these arguments unchanged.
 - `ffmpeg is not available`: install ffmpeg or set
   `etaf-ascii-video-ffmpeg-program` to its absolute path.
 - `Video file is not readable`: the path is wrong or the file is not a local
-  readable file; remote URLs are not supported.
+  readable file; use `etaf-ascii-video-open-url` for network streams.
+- A URL does not play: check the network and, behind a proxy, `ffmpeg`'s
+  lowercase `http_proxy` / `https_proxy` environment variables. Non-HTTP(S)
+  schemes are rejected before any process starts.
 - No total duration in the status line: ffprobe is missing or the container
   does not report one; playback still works.
 - The picture looks squashed: the canvas no longer matches the video aspect

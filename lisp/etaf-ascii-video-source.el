@@ -57,41 +57,55 @@ playback use documented defaults."
                              (seconds (string-to-number (match-string 2 rate))))
                          (when (> seconds 0) (/ frames seconds))))))))))
 
+(defun etaf-ascii-video--url-p (source)
+  "Return non-nil when SOURCE is an HTTP or HTTPS URL string."
+  (and (stringp source)
+       (string-match-p "\\`https?://[^[:space:]]+\\'" source)))
+
 (cl-defun etaf-ascii-video--normalize-source (source)
   "Return SOURCE as a normalized plist, or signal `user-error'.
-SOURCE is nil for the built-in demo, a file name string, or a plist:
+SOURCE is nil for the built-in demo, a file name or HTTP(S) URL string, or
+a plist:
 
   (:file PATH)   a local video file; ffprobe supplies its metadata
+  (:url URL)     an HTTP(S) video stream decoded directly by ffmpeg
   (:demo)        a generated 30 second test pattern, no file needed
 
-Both accept the display hints `:columns' and `:rows' (canvas size in character
+All accept the display hints `:columns' and `:rows' (canvas size in character
 cells) and `:speed' (playback rate).  The result holds `:kind', `:file',
-`:width', `:height', `:duration', `:fps' and the hints."
-  (let (kind file)
+`:url', `:width', `:height', `:duration', `:fps', `:mode' and the hints."
+  (let (kind file url)
     (cond ((null source) (setq kind 'demo))
+          ((etaf-ascii-video--url-p source) (setq kind 'url url source))
           ((stringp source) (setq kind 'file file source))
           ((and (consp source) (eq (car source) :demo)) (setq kind 'demo))
           ((and (consp source) (plist-get source :demo)) (setq kind 'demo))
+          ((and (consp source) (plist-get source :url))
+           (setq kind 'url url (plist-get source :url)))
           ((and (consp source) (plist-get source :file))
            (setq kind 'file file (plist-get source :file)))
           (t (user-error "Unsupported etaf-ascii-video source: %S" source)))
     (when (eq kind 'file)
       (unless (and (stringp file) (file-readable-p file))
         (user-error "Video file is not readable: %S" file)))
-    (let* ((probe (and (eq kind 'file) (etaf-ascii-video--probe file)))
-           (width (or (and (eq kind 'file) (plist-get probe :width))
+    (when (eq kind 'url)
+      (unless (etaf-ascii-video--url-p url)
+        (user-error "Video URL must be http or https: %S" url)))
+    (let* ((probe (and (memq kind '(file url)) (etaf-ascii-video--probe (or file url))))
+           (width (or (and (memq kind '(file url)) (plist-get probe :width))
                       (plist-get source :width) 640))
-           (height (or (and (eq kind 'file) (plist-get probe :height))
+           (height (or (and (memq kind '(file url)) (plist-get probe :height))
                        (plist-get source :height) 360))
-           (duration (or (and (eq kind 'file) (plist-get probe :duration))
+           (duration (or (and (memq kind '(file url)) (plist-get probe :duration))
                          (plist-get source :duration)
                          (and (eq kind 'demo) 30)))
-           (fps (or (and (eq kind 'file) (plist-get probe :fps))
+           (fps (or (and (memq kind '(file url)) (plist-get probe :fps))
                     (plist-get source :fps)
                     (and (eq kind 'demo) 30)
                     25)))
       (list :kind kind
             :file file
+            :url url
             :width width
             :height height
             :duration duration
@@ -115,6 +129,9 @@ scaled to the pixel size recorded in SPEC."
             (list "-readrate" (number-to-string speed))
             (pcase (plist-get spec :kind)
               ('file (list "-i" (plist-get spec :file)))
+              ('url (list "-reconnect" "1" "-reconnect_streamed" "1"
+                          "-reconnect_delay_max" "5"
+                          "-i" (plist-get spec :url)))
               ('demo (list "-f" "lavfi" "-i" "testsrc2=size=640x360:rate=30" "-t" "30"))
               (_ (user-error "Cannot build ffmpeg arguments for %S" spec)))
             (pcase mode

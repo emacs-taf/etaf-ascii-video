@@ -57,6 +57,7 @@ can be raised for sharper, slower pictures.")
     (define-key map (kbd "c") #'etaf-ascii-video--toggle-color-command)
     (define-key map (kbd "i") #'etaf-ascii-video--toggle-graphics-command)
     (define-key map (kbd "o") #'etaf-ascii-video-open-file)
+    (define-key map (kbd "u") #'etaf-ascii-video-open-url)
     (define-key map (kbd "d") #'etaf-ascii-video-demo)
     (define-key map (kbd "?") #'etaf-ascii-video--help-command)
     (define-key map (kbd "q") #'etaf-ascii-video-close)
@@ -85,6 +86,7 @@ can be raised for sharper, slower pictures.")
            (define-key map (kbd "c") #'etaf-ascii-video--toggle-color-command)
            (define-key map (kbd "i") #'etaf-ascii-video--toggle-graphics-command)
            (define-key map (kbd "o") #'etaf-ascii-video-open-file)
+           (define-key map (kbd "u") #'etaf-ascii-video-open-url)
            (define-key map (kbd "d") #'etaf-ascii-video-demo)
            (define-key map (kbd "?") #'etaf-ascii-video--help-command)
            (define-key map (kbd "q") #'etaf-ascii-video-close)
@@ -196,6 +198,9 @@ and `:rows'."
               (setq-local etaf-ascii-video--player player)
               (setq-local truncate-lines t)
               (setq-local auto-hscroll-mode nil)
+              ;; A video frame owns the whole canvas; a bar or box cursor over
+              ;; an image cell would flash a border around the picture.
+              (setq-local cursor-type nil)
               (setq-local emulation-mode-map-alists
                           (cons 'etaf-ascii-video--command-maps
                                 (remq 'etaf-ascii-video--command-maps
@@ -225,6 +230,15 @@ and `:rows'."
   "Play the local video FILE in the ASCII video player."
   (interactive "fVideo file: ")
   (etaf-ascii-video-open (list :file file)))
+
+;;;###autoload
+(defun etaf-ascii-video-open-url (url)
+  "Play the HTTP(S) video stream URL in the ASCII video player.
+The stream is decoded directly by ffmpeg, so nothing is downloaded first.
+Seeking depends on the server supporting range requests; a dropped
+connection is retried up to five seconds.  The audio track is not played."
+  (interactive "sVideo URL: ")
+  (etaf-ascii-video-open (list :url url)))
 
 ;;;###autoload
 (defun etaf-ascii-video-demo ()
@@ -321,6 +335,7 @@ Keys are `:source', `:playing', `:position', `:duration', `:speed',
          (spec (etaf-ascii-video--player-spec player)))
     (list :source (pcase (plist-get spec :kind)
                     ('file (plist-get spec :file))
+                    ('url (plist-get spec :url))
                     (_ 'demo))
           :playing (and (etaf-ascii-video--player-playing player) t)
           :position (etaf-ascii-video--player-position player)
@@ -401,7 +416,7 @@ Keys are `:source', `:playing', `:position', `:duration', `:speed',
   "Show the ASCII video key bindings."
   (interactive)
   (message (concat "ASCII video: SPC play/pause, n step, f/b +-5s, +/- speed, "
-                   "1-4 grid, c color, i image, F fit, o open, d demo, q close")))
+                   "1-4 grid, c color, i image, F fit, o open, u url, d demo, q close")))
 
 (provide 'etaf-ascii-video-app)
 ;;; etaf-ascii-video-app.el ends here
