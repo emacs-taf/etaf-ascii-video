@@ -1,0 +1,66 @@
+#!/usr/bin/env python3
+"""Emit synthetic raw grayscale frames for etaf-ascii-video contract tests.
+
+The player invokes ffmpeg with the documented argv; this fixture accepts that
+argv, optionally records it to FAKE_FFMPEG_LOG (one NUL-joined line per run),
+and emits width*height gray bytes per frame.  Real decoding is deliberately
+absent: the acceptance suite exercises the Emacs process, mapping and retained
+publication path without ffmpeg; only the GUI workflow runs real ffmpeg.
+
+Environment:
+  FAKE_FFMPEG_LOG       append the received argv here
+  FAKE_FFMPEG_FRAMES    frame count (default 40)
+  FAKE_FFMPEG_INTERVAL  seconds between frames (default 0.02)
+  FAKE_FFMPEG_PATTERN   columns (default), shift or flash
+  FAKE_FFMPEG_WIDTH     override the parsed scale width
+  FAKE_FFMPEG_HEIGHT    override the parsed scale height
+"""
+
+import os
+import re
+import sys
+import time
+
+
+def main():
+    argv = sys.argv[1:]
+    log = os.environ.get("FAKE_FFMPEG_LOG")
+    if log:
+        with open(log, "a", encoding="utf-8") as sink:
+            sink.write("\0".join(argv) + "\n")
+
+    width = height = None
+    for argument in argv:
+        match = re.fullmatch(r"scale=(\d+):(\d+)(?::flags=\w+)?", argument)
+        if match:
+            width, height = int(match.group(1)), int(match.group(2))
+    width = int(os.environ.get("FAKE_FFMPEG_WIDTH", str(width or 16)))
+    height = int(os.environ.get("FAKE_FFMPEG_HEIGHT", str(height or 4)))
+    frames = int(os.environ.get("FAKE_FFMPEG_FRAMES", "40"))
+    interval = float(os.environ.get("FAKE_FFMPEG_INTERVAL", "0.02"))
+    pattern = os.environ.get("FAKE_FFMPEG_PATTERN", "columns")
+
+    out = sys.stdout.buffer
+    span = max(1, width - 1)
+    for index in range(frames):
+        frame = bytearray()
+        for _row in range(height):
+            row = bytearray(width)
+            for x in range(width):
+                if pattern == "flash":
+                    value = 255 if index % 2 == 0 else 0
+                elif pattern == "shift":
+                    value = ((x + index) % width) * 255 // span
+                else:
+                    value = x * 255 // span
+                row[x] = value
+            frame.extend(row)
+        out.write(bytes(frame))
+        out.flush()
+        if interval > 0:
+            time.sleep(interval)
+    return 0
+
+
+if __name__ == "__main__":
+    sys.exit(main())

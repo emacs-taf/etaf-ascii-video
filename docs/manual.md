@@ -1,0 +1,111 @@
+# ETAF ASCII Video manual
+
+## Playing a video
+
+`etaf-ascii-video-open-file` plays a local file; `etaf-ascii-video-demo` plays
+a generated 30 second test pattern and needs no file. Both create one buffer
+named `*ASCII Video*` and reuse it: opening another source closes the previous
+player first. `etaf-ascii-video-close` (also `q`) cancels the display timer,
+terminates ffmpeg and unmounts the ETAF Runtime.
+
+Playback starts immediately. `SPC` pauses and resumes, `n` pauses and presents
+exactly one more frame, `f` and `b` seek five seconds, and `+`/`-` step through
+0.5x, 1x, 2x, 4x and 8x. Pausing releases the producer, and resuming starts a
+new one at the pause position, so a long pause never makes playback jump
+forward to catch up. Seeking and rate changes restart the producer at the
+current position too, so they are safe while paused. When the file ends the
+last picture stays visible and the status line shows `ended`; `SPC` replays
+from the start.
+
+The producer's own frame rate may be lower or higher than
+`etaf-ascii-video-display-fps` (30 by default). Display always claims only the
+newest complete frame, so a slower display drops frames instead of replaying a
+backlog; the status line's `dropped` counter reports how many. The rate shown
+in the status line is the number of frames presented in the last second, not
+the timer rate, so a canvas too large for the display cost reports a lower
+number instead of a hopeful one.
+
+## Rendering
+
+Each frame is decoded at the canvas size and converted to raw grayscale bytes
+by ffmpeg, then mapped in Emacs: every byte picks one character of
+`etaf-ascii-video-density-ramp` from darkest to lightest. Rows are joined with
+newlines and the whole text replaces the canvas Host through ETAF's retained
+content boundary. Text carries no per-pixel properties, so mapping and
+publication stay proportional to the canvas, not to the encoded frame.
+
+The default ramp is ` .:-=+*#%@`; a longer or shorter ramp changes the number
+of visible levels, and the change applies to the next frame. The ramp must be
+nonempty and single-line.
+
+Character cells are about twice as tall as wide, so the default fitting keeps
+the video aspect ratio by sampling `rows * aspect * 2` columns. The built-in
+demo is 640x360; a file's real size comes from ffprobe, and the source defaults
+are 640x360 when ffprobe is unavailable.
+
+| Key | Action |
+| --- | --- |
+| `SPC` | play or pause |
+| `n` | one frame while paused |
+| `f`, `b` | +5 s / -5 s |
+| `+`, `-` | next / previous rate |
+| `1` .. `4` | 64, 96, 128, 176 columns |
+| `F` | fit to the window |
+| `o`, `d` | open a file / demo |
+| `?`, `q` | help / close |
+
+`F` and `etaf-ascii-video-fit` reserve one row for the status line and refit
+the ETAF viewport before changing the grid. The same fitting runs
+automatically through `window-size-change-functions` when the window changes
+size, so a resized frame keeps a canvas that fits.
+
+## Scripting
+
+`etaf-ascii-video-open` accepts a file name or a plist, so a session can be
+built without prompts:
+
+```elisp
+(etaf-ascii-video-open '(:file "clip.mp4" :columns 100 :rows 28 :speed 2))
+(etaf-ascii-video-seek 12.5)
+(etaf-ascii-video-set-speed 0.5)
+(etaf-ascii-video-set-grid 160 45)
+(etaf-ascii-video-state)
+;; => (:source "clip.mp4" :playing t :position 12.5 :duration 300.0 ...)
+```
+
+Every control function operates on the current buffer's player and signals
+`user-error` elsewhere, so scripts should call them from the player buffer or
+from an interactive command bound there. `etaf-ascii-video-state` returns a
+detached plist; the interesting keys are `:playing`, `:position`, `:duration`,
+`:received`, `:presented`, `:dropped`, `:frame-ms` and `:ended`.
+
+| Variable | Meaning |
+| --- | --- |
+| `etaf-ascii-video-density-ramp` | pixel characters, darkest to lightest |
+| `etaf-ascii-video-display-fps` | display timer rate, default 30 |
+| `etaf-ascii-video-grid-presets` | character to canvas width, used by `1`-`4` |
+| `etaf-ascii-video-ffmpeg-program` | ffmpeg name or path; use a wrapper to add decoder options |
+| `etaf-ascii-video-ffprobe-program` | ffprobe name or path; optional |
+
+The player passes ffmpeg the documented argument shape
+`-hide_banner -loglevel error [-ss START] -readrate SPEED -i INPUT -vf
+scale=COLUMNS:ROWS:flags=area -f rawvideo -pix_fmt gray -`, with
+`-f lavfi -i testsrc2=size=640x360:rate=30 -t 30` for the demo instead of
+`-i INPUT`. A wrapper set through `etaf-ascii-video-ffmpeg-program` receives
+these arguments unchanged.
+
+## Troubleshooting
+
+- `ffmpeg is not available`: install ffmpeg or set
+  `etaf-ascii-video-ffmpeg-program` to its absolute path.
+- `Video file is not readable`: the path is wrong or the file is not a local
+  readable file; remote URLs are not supported.
+- No total duration in the status line: ffprobe is missing or the container
+  does not report one; playback still works.
+- The picture looks squashed: the canvas no longer matches the video aspect
+  ratio. Press `F` or call `etaf-ascii-video-fit`.
+- The picture lags after resizing or switching monitors: the grid refits
+  automatically, and a producer restart is part of that change.
+- Colors: this release is intentionally monochrome ASCII. Colored half-block
+  rendering exists in Ebox's image preparation, but the video pipeline does
+  not use it.

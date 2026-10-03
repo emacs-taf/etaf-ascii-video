@@ -1,0 +1,53 @@
+{
+  "schema": 1,
+  "load_path": [
+    ".",
+    "tests",
+    "../../etaf",
+    "../../ebox",
+    "../../ecss"
+  ],
+  "support": [],
+  "cases": [
+    {
+      "name": "etaf-ascii-video-tests-renders-ramp-frames",
+      "file": "tests/etaf-ascii-video-tests.el",
+      "purpose": "Each displayed pixel is the ramp character of its grayscale byte and the recorded ffmpeg invocation matches the documented scale and readrate contract."
+    },
+    {
+      "name": "etaf-ascii-video-tests-playback-controls",
+      "file": "tests/etaf-ascii-video-tests.el",
+      "purpose": "Pause, single step, resume, speed and seek keep the reported state honest and restart the producer with the expected arguments."
+    },
+    {
+      "name": "etaf-ascii-video-tests-resume-seeks-instead-of-catching-up",
+      "file": "tests/etaf-ascii-video-tests.el",
+      "purpose": "Pausing freezes the position and resuming restarts the producer with an explicit seek instead of fast-forwarding to catch up."
+    },
+    {
+      "name": "etaf-ascii-video-tests-resizes-canvas",
+      "file": "tests/etaf-ascii-video-tests.el",
+      "purpose": "A grid change republishes the canvas shape, restarts the producer with the new scale, and window fitting keeps the canvas inside the window."
+    },
+    {
+      "name": "etaf-ascii-video-tests-rejects-invalid-sources",
+      "file": "tests/etaf-ascii-video-tests.el",
+      "purpose": "Unsupported sources and a missing ffmpeg signal user-error and leave no mounted buffer behind."
+    },
+    {
+      "name": "etaf-ascii-video-tests-finishes-at-end",
+      "file": "tests/etaf-ascii-video-tests.el",
+      "purpose": "A producer that runs out of frames ends the player, keeps the last picture, and plays again from the start."
+    },
+    {
+      "name": "etaf-ascii-video-tests-documented-keys-reach-player",
+      "file": "tests/etaf-ascii-video-tests.el",
+      "purpose": "The documented keys drive the player through the command loop instead of the renderer's own keymap, and closing leaves no buffer."
+    },
+    {
+      "name": "etaf-ascii-video-tests-plays-demo-with-real-ffmpeg",
+      "file": "tests/etaf-ascii-video-tests.el",
+      "purpose": "The built-in demo plays through a real ffmpeg when one is installed, producing the requested line shape."
+    }
+  ]
+}
