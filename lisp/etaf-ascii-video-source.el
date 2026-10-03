@@ -23,8 +23,8 @@ appends the filter and rawvideo output arguments described in the manual.")
 Missing metadata degrades to defaults instead of failing playback.")
 
 (cl-defstruct (etaf-ascii-video--source (:constructor etaf-ascii-video--source--make))
-  "A running raw grayscale frame producer."
-  process pipe work columns rows frame-size carry latest received presented dropped ended exit)
+  "A running raw or JPEG frame producer."
+  process pipe work columns rows frame-size carry latest received presented dropped ended exit graphics-p)
 
 (defun etaf-ascii-video--number (values key)
   "Return VALUES's KEY as a positive number, or nil."
@@ -99,14 +99,16 @@ cells) and `:speed' (playback rate).  The result holds `:kind', `:file',
             :columns (plist-get source :columns)
             :rows (plist-get source :rows)
             :speed (plist-get source :speed)
-            :color (plist-get source :color)))))
+            :mode (or (plist-get source :mode)
+                      (and (plist-get source :color) 'color))))))
 
 (defun etaf-ascii-video--ffmpeg-arguments (spec columns rows speed start)
   "Return ffmpeg arguments for SPEC at COLUMNS by ROWS character cells.
-SPEED is the `-readrate' factor; START is the seek position in seconds.  The
-monochrome output is one grayscale byte per cell; with `:color' the output is
-COLUMNS by twice ROWS RGB24 pixels, one character cell per two pixels."
-  (let ((color (plist-get spec :color)))
+SPEED is the `-readrate' factor; START is the seek position in seconds.
+The `mono' mode outputs one grayscale byte per cell, `color' outputs COLUMNS
+by twice ROWS RGB24 pixels and `graphics' outputs one MJPEG image per frame,
+scaled to the pixel size recorded in SPEC."
+  (let ((mode (plist-get spec :mode)))
     (append (list "-hide_banner" "-loglevel" "error")
             (when (and (numberp start) (> start 0))
               (list "-ss" (number-to-string start)))
@@ -115,24 +117,49 @@ COLUMNS by twice ROWS RGB24 pixels, one character cell per two pixels."
               ('file (list "-i" (plist-get spec :file)))
               ('demo (list "-f" "lavfi" "-i" "testsrc2=size=640x360:rate=30" "-t" "30"))
               (_ (user-error "Cannot build ffmpeg arguments for %S" spec)))
-            (list "-vf" (if color
-                            (format "scale=%d:%d:flags=area" columns (* 2 rows))
-                          (format "scale=%d:%d:flags=area" columns rows))
-                  "-f" "rawvideo" "-pix_fmt" (if color "rgb24" "gray") "-"))))
+            (pcase mode
+              ('graphics
+               (list "-vf" (format "scale=%d:%d:flags=area"
+                                   (or (plist-get spec :pixel-width) columns)
+                                   (or (plist-get spec :pixel-height) rows))
+                     "-f" "image2pipe" "-c:v" "mjpeg" "-"))
+              ('color
+               (list "-vf" (format "scale=%d:%d:flags=area" columns (* 2 rows))
+                     "-f" "rawvideo" "-pix_fmt" "rgb24" "-"))
+              (_
+               (list "-vf" (format "scale=%d:%d:flags=area" columns rows)
+                     "-f" "rawvideo" "-pix_fmt" "gray" "-"))))))
 
 (defun etaf-ascii-video--source-filter (process chunk)
-  "Accumulate CHUNK into complete frames; the newest complete frame wins."
+  "Accumulate CHUNK into complete frames; the newest complete frame wins.
+Raw frames are cut at their fixed byte length; graphics frames are complete
+JPEG images delimited by SOI and EOI markers."
   (let ((source (process-get process 'etaf-ascii-video-source)))
     (when source
-      (let ((data (concat (etaf-ascii-video--source-carry source) chunk))
-            (size (etaf-ascii-video--source-frame-size source)))
-        (while (>= (length data) size)
-          (let ((frame (substring data 0 size)))
-            (setq data (substring data size))
-            (when (etaf-ascii-video--source-latest source)
-              (cl-incf (etaf-ascii-video--source-dropped source)))
-            (setf (etaf-ascii-video--source-latest source) frame)
-            (cl-incf (etaf-ascii-video--source-received source))))
+      (let ((data (concat (etaf-ascii-video--source-carry source) chunk)))
+        (if (etaf-ascii-video--source-graphics-p source)
+            (let ((soi (string-search "\xff\xd8" data))
+                  (eoi nil) (frame nil))
+              (when soi
+                (setq eoi (string-search "\xff\xd9" data (1+ soi))))
+              (while (and soi eoi)
+                (setq frame (substring data soi (+ eoi 2))
+                      data (substring data (+ eoi 2))
+                      soi (string-search "\xff\xd8" data)
+                      eoi (and soi (string-search "\xff\xd9" data (1+ soi)))))
+              (when frame
+                (when (etaf-ascii-video--source-latest source)
+                  (cl-incf (etaf-ascii-video--source-dropped source)))
+                (setf (etaf-ascii-video--source-latest source) frame)
+                (cl-incf (etaf-ascii-video--source-received source))))
+          (let ((size (etaf-ascii-video--source-frame-size source)))
+            (while (>= (length data) size)
+              (let ((frame (substring data 0 size)))
+                (setq data (substring data size))
+                (when (etaf-ascii-video--source-latest source)
+                  (cl-incf (etaf-ascii-video--source-dropped source)))
+                (setf (etaf-ascii-video--source-latest source) frame)
+                (cl-incf (etaf-ascii-video--source-received source))))))
         (setf (etaf-ascii-video--source-carry source) data)))))
 
 (defun etaf-ascii-video--source-sentinel (process _event)
@@ -153,9 +180,10 @@ signals `user-error' before any process exists."
                                  etaf-ascii-video-ffmpeg-program)))
         (pipe (generate-new-buffer " *etaf-ascii-video pipe*"))
         (work (generate-new-buffer " *etaf-ascii-video map*"))
-        (frame-size (if (plist-get spec :color)
-                        (* columns rows 2 3)
-                      (* columns rows)))
+        (frame-size (pcase (plist-get spec :mode)
+                      ('color (* columns rows 2 3))
+                      ('graphics 0)
+                      (_ (* columns rows))))
         (process nil))
     (setq process
           (make-process
@@ -172,7 +200,8 @@ signals `user-error' before any process exists."
     (let ((source (etaf-ascii-video--source--make
                    :process process :pipe pipe :work work
                    :columns columns :rows rows :frame-size frame-size
-                   :carry "" :latest nil :received 0 :presented 0 :dropped 0)))
+                   :carry "" :latest nil :received 0 :presented 0 :dropped 0
+                   :graphics-p (eq (plist-get spec :mode) 'graphics))))
       (process-put process 'etaf-ascii-video-source source)
       source)))
 

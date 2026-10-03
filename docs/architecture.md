@@ -49,7 +49,8 @@ internal.
   retained Ebox publication rather than an ordinary ETAF render. The
   monochrome grid creates no per-pixel properties; the color grid carries one
   `face` property per cell, so its publication work is proportional to the
-  cell count and it publishes slower.
+  cell count; the graphics mode carries one image display property per frame,
+  independent of the pixel count.
 - **Latest frame wins.** The filter retains at most one complete frame; a slow
   display drops frames and the clock advances from delivered frames, so
   playback never replays a backlog.
@@ -94,3 +95,9 @@ monochrome 160x45 frame with no per-cell properties. Each colored frame
 reports `span-patch` / `owner-scoped`, one dirty node, one patch, no full-root
 publication and one property operation per cell. Reducing that per-cell cost
 is the next framework-probe task.
+
+Graphics mode publishes one JPEG per frame as an image display, so its cost
+does not grow with the cell count: a GUI session at the full-window canvas
+136x48 measured about 8.5 ms per frame and 22-26 presented frames per second,
+including JPEG decoding and redisplay. It requires a graphical frame; the
+monochrome and color modes remain available on terminals.

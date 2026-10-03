@@ -388,10 +388,10 @@ the player to density characters."
                "FAKE_FFPROBE_DURATION=4.0"
                "FAKE_FFPROBE_FPS=50/1")
          (etaf-ascii-video-open
-          (list :file etaf-ascii-video-tests--input :columns 16 :rows 4 :color t))
+          (list :file etaf-ascii-video-tests--input :columns 16 :rows 4 :mode 'color))
          (should (etaf-ascii-video-tests--wait
                   (lambda () (>= (plist-get (etaf-ascii-video-tests--state) :presented) 1))))
-         (should (plist-get (etaf-ascii-video-tests--state) :color))
+         (should (eq 'color (plist-get (etaf-ascii-video-tests--state) :mode)))
          (with-current-buffer "*ASCII Video*"
            (let* ((text (buffer-string))
                   (line (substring text 0 (string-match "\n" text))))
@@ -402,12 +402,43 @@ the player to density characters."
                              (get-text-property 1 'face line))))
            (should (string-match-p "color" (buffer-string))))
          (etaf-ascii-video-set-color nil)
-         (should-not (plist-get (etaf-ascii-video-tests--state) :color))
+         (should (eq 'mono (plist-get (etaf-ascii-video-tests--state) :mode)))
          (should (etaf-ascii-video-tests--wait
                   (lambda ()
                     (with-current-buffer "*ASCII Video*"
                       (not (string-match-p "▀" (buffer-string)))))))
          (etaf-ascii-video-close))
+      (ignore-errors (delete-file log))
+      (etaf-ascii-video-tests--cleanup))))
+
+(ert-deftest etaf-ascii-video-tests-graphics-image-frames ()
+  "Graphics mode publishes one JPEG image display per frame.
+The fixture emits a tiny JPEG for `-c:v mjpeg'; the test stubs the graphical
+frame check, verifies the image display property and the status mode."
+  (etaf-ascii-video-tests--cleanup)
+  (let ((log (etaf-ascii-video-tests--log)))
+    (unwind-protect
+        (etaf-ascii-video-tests--with-fixture
+         log
+         (list "FAKE_FFMPEG_FRAMES=200"
+               "FAKE_FFMPEG_INTERVAL=0.02"
+               "FAKE_FFPROBE_DURATION=4.0"
+               "FAKE_FFPROBE_FPS=50/1")
+         (cl-letf (((symbol-function 'display-graphic-p)
+                    (lambda (&optional _frame) t)))
+           (etaf-ascii-video-open
+            (list :file etaf-ascii-video-tests--input :columns 16 :rows 4
+                  :mode 'graphics))
+           (should (etaf-ascii-video-tests--wait
+                    (lambda ()
+                      (>= (plist-get (etaf-ascii-video-tests--state) :presented) 1))))
+           (should (eq 'graphics (plist-get (etaf-ascii-video-tests--state) :mode)))
+           (with-current-buffer "*ASCII Video*"
+             (let ((display (get-text-property 0 'display (buffer-string))))
+               (should (consp display))
+               (should (eq (car display) 'image)))
+             (should (string-match-p "graphics" (buffer-string))))
+           (etaf-ascii-video-close)))
       (ignore-errors (delete-file log))
       (etaf-ascii-video-tests--cleanup))))
 

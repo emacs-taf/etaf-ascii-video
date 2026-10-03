@@ -25,7 +25,7 @@
 ;; functions below drive it, `etaf-ascii-video-state' reports it as plain
 ;; data, and `etaf-ascii-video-close' releases it.  The default keymap binds
 ;; the same commands: SPC play/pause, n step, f/b seek five seconds, +/- speed,
-;; 1-4 grid presets, c color, F fit, o open, d demo, ? help and q close.
+;; 1-4 grid presets, c color, i image, F fit, o open, d demo, ? help and q close.
 ;;
 ;; Only the interfaces listed below are supported for use by other packages.
 ;; All unlisted symbols and implementation features are internal, including
@@ -78,11 +78,17 @@
 ;;
 ;; Function: etaf-ascii-video-set-color (color)
 ;; Turn true-color half-block rendering on (non-nil) or off (nil).
-;; Color mode renders two full color pixels per character cell with `▀': the
-;; top pixel is the foreground and the bottom pixel the background, so it
-;; doubles the vertical resolution and keeps the video's colors.  It carries
-;; one `face' property per cell, so it publishes slower than the monochrome
-;; density-ramp mode; `etaf-ascii-video-color-columns' caps the fitted width.
+;; Equivalent to `etaf-ascii-video-set-render-mode' with `color' or `mono'.
+;;
+;; Function: etaf-ascii-video-set-render-mode (mode)
+;; Switch the current player to MODE: `mono', `color' or `graphics'.
+;; `mono' maps each pixel to one density-ramp character.  `color' renders two
+;; full color pixels per character cell with `▀' (top pixel as foreground,
+;; bottom pixel as background); it doubles the vertical resolution and keeps
+;; the video's colors, at one `face' property per cell, so
+;; `etaf-ascii-video-color-columns' caps the fitted width.  `graphics'
+;; publishes one scaled JPEG per frame as an image display; it needs a
+;; graphical frame and is the only mode that scales to a full window.
 ;; The producer restarts at the current position in the new mode.
 ;;
 ;; Function: etaf-ascii-video-set-grid (columns rows)
@@ -98,20 +104,22 @@
 ;; Function: etaf-ascii-video-state ()
 ;; Return the current player's state as a detached plist.
 ;; Keys are `:source', `:playing', `:position', `:duration', `:speed',
-;; `:columns', `:rows', `:fps' (display timer rate), `:presented-fps' (frames
-;; presented in the last second), `:source-fps', `:received', `:presented',
-;; `:dropped', `:frame-ms' and `:ended'.  It reads the live player without
-;; changing it, and signals `user-error' outside a player buffer.
+;; `:columns', `:rows', `:mode', `:fps' (display timer rate), `:presented-fps'
+;; (frames presented in the last second), `:source-fps', `:received',
+;; `:presented', `:dropped', `:frame-ms' and `:ended'.  It reads the live
+;; player without changing it, and signals `user-error' outside a player buffer.
 ;;
 ;; Variable: etaf-ascii-video-density-ramp
 ;; Characters used for one video pixel, darkest to lightest.
 ;; The default is " .:-=+*#%@"; it must be nonempty and single-line, and a
 ;; change takes effect on the next rendered frame.
 ;;
-;; Variable: etaf-ascii-video-color
-;; Whether new players start in true-color half-block mode.
-;; Nil (the default) renders one monochrome density character per pixel;
-;; non-nil renders two full color pixels per character cell with `▀'.
+;; Variable: etaf-ascii-video-render-mode
+;; Rendering mode for new players: `mono', `color' or `graphics'.
+;; `mono' is the default density-ramp mode, `color' renders two full color
+;; pixels per cell with `▀', and `graphics' publishes one scaled JPEG image
+;; per frame on a graphical frame.  `:mode' in a source plist overrides it;
+;; the legacy `:color t' shorthand selects `color'.
 ;;
 ;; Variable: etaf-ascii-video-color-columns
 ;; Column limit used when a true-color player fits a new window.

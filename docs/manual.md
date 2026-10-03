@@ -27,19 +27,23 @@ number instead of a hopeful one.
 
 ## Rendering
 
-Each frame is decoded at the canvas size by ffmpeg, then mapped in Emacs.  The
-monochrome mode converts the frame to raw grayscale bytes and every byte picks
-one character of `etaf-ascii-video-density-ramp` from darkest to lightest.
-True-color half-block mode (`c`, `etaf-ascii-video-set-color`) converts the
-frame to RGB24 at `columns` by `rows * 2` pixels: the top pixel of each cell
-becomes the foreground of `▀` and the bottom pixel its background, so one
-character cell shows two full color pixels.  Rows are joined with newlines and
-the whole text replaces the canvas Host through ETAF's retained content
-boundary.
+Each frame is decoded at the canvas size by ffmpeg, then rendered in one of
+three modes (`etaf-ascii-video-set-render-mode`).  The default monochrome
+mode converts the frame to raw grayscale bytes and every byte picks one
+character of `etaf-ascii-video-density-ramp` from darkest to lightest.
+True-color half-block mode (`c`) converts the frame to RGB24 at `columns` by
+`rows * 2` pixels: the top pixel of each cell becomes the foreground of `▀`
+and the bottom pixel its background, so one character cell shows two full
+color pixels.  Graphics mode (`i`) has ffmpeg emit one JPEG per frame at the
+canvas pixel size and publishes it as an image display on a single character
+cell; it needs a graphical frame and is the only mode whose cost does not
+grow with the cell count.  Monochrome and half-block lines are joined with
+newlines and the whole text replaces the canvas Host through ETAF's retained
+content boundary.
 
 The default ramp is ` .:-=+*#%@`; a longer or shorter ramp changes the number
 of visible levels, and the change applies to the next frame. The ramp must be
-nonempty and single-line.  Color mode ignores the ramp.
+nonempty and single-line.  Color and graphics modes ignore the ramp.
 
 The monochrome canvas carries no per-pixel properties.  Color mode carries one
 `face` property per cell, so its publication cost grows with the cell count
@@ -66,6 +70,7 @@ are 640x360 when ffprobe is unavailable.
 | `+`, `-` | next / previous rate |
 | `1` .. `4` | 64, 96, 128, 176 columns |
 | `c` | toggle true-color half-block rendering |
+| `i` | toggle graphics (image) rendering |
 | `F` | fit to the window |
 | `o`, `d` | open a file / demo |
 | `?`, `q` | help / close |
@@ -98,7 +103,7 @@ detached plist; the interesting keys are `:playing`, `:position`, `:duration`,
 | Variable | Meaning |
 | --- | --- |
 | `etaf-ascii-video-density-ramp` | pixel characters, darkest to lightest (monochrome mode) |
-| `etaf-ascii-video-color` | whether new players start in true-color half-block mode |
+| `etaf-ascii-video-render-mode` | default mode for new players: `mono`, `color` or `graphics` |
 | `etaf-ascii-video-color-columns` | color-mode fitted column cap, default 32; nil fits the window |
 | `etaf-ascii-video-display-fps` | display timer rate, default 30 |
 | `etaf-ascii-video-grid-presets` | character to canvas width, used by `1`-`4` |

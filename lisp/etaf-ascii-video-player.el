@@ -101,9 +101,7 @@ so a dropped display frame still advances the clock."
           (etaf-ascii-video--player-dropped player)
           (etaf-ascii-video--player-columns player)
           (etaf-ascii-video--player-rows player)
-          (if (plist-get (etaf-ascii-video--player-spec player) :color)
-              "color"
-            "mono")
+          (symbol-name (or (plist-get (etaf-ascii-video--player-spec player) :mode) 'mono))
           (format "%s" (etaf-ascii-video--player-speed player))))
 
 (cl-defun etaf-ascii-video--player-create (buffer spec columns rows)
@@ -167,16 +165,20 @@ but the status line must follow."
       (progn
         (let ((begin (float-time)))
           (setf (etaf-ascii-video--player-grid-text player)
-                (if (plist-get (etaf-ascii-video--player-spec player) :color)
-                    (etaf-ascii-video--color-grid-text
-                     frame (etaf-ascii-video--player-columns player)
-                     (etaf-ascii-video--player-rows player))
-                  (etaf-ascii-video--grid-text
-                   frame (etaf-ascii-video--player-columns player)
-                   (etaf-ascii-video--player-rows player)
-                   (and (etaf-ascii-video--player-source player)
-                        (etaf-ascii-video--source-work
-                         (etaf-ascii-video--player-source player))))))
+                (pcase (or (plist-get (etaf-ascii-video--player-spec player) :mode) 'mono)
+                  ('graphics
+                   (propertize " " 'display (create-image frame 'jpeg t)))
+                  ('color
+                   (etaf-ascii-video--color-grid-text
+                    frame (etaf-ascii-video--player-columns player)
+                    (etaf-ascii-video--player-rows player)))
+                  (_
+                   (etaf-ascii-video--grid-text
+                    frame (etaf-ascii-video--player-columns player)
+                    (etaf-ascii-video--player-rows player)
+                    (and (etaf-ascii-video--player-source player)
+                         (etaf-ascii-video--source-work
+                          (etaf-ascii-video--player-source player)))))))
           (etaf-ascii-video--player-present
            player (etaf-ascii-video--player-grid-text player)
            (setf (etaf-ascii-video--player-hud-text player)
@@ -252,20 +254,32 @@ its lifetime totals before the process is released."
 (defun etaf-ascii-video--player-spawn (player &optional start)
   "Create PLAYER's producer at START seconds and apply its play state.
 Callers only spawn a producer they intend to consume: pause releases it, so
-a resume or step can seek back instead of catching up to wall-clock time."
+a resume or step can seek back instead of catching up to wall-clock time.
+Graphics mode records the canvas pixel size in the spec and requires a
+graphical frame."
   (let* ((spec (etaf-ascii-video--player-spec player))
-         (source (etaf-ascii-video--source-start
-                  spec
-                  (etaf-ascii-video--player-columns player)
-                  (etaf-ascii-video--player-rows player)
-                  :speed (etaf-ascii-video--player-speed player)
-                  :start (or start 0))))
-    (setf (etaf-ascii-video--player-source player) source
-          (etaf-ascii-video--player-base player) (or start 0)
-          (etaf-ascii-video--player-ended player) nil
-          (etaf-ascii-video--player-finished player) nil
-          (etaf-ascii-video--player-error player) nil)
-    source))
+         (buffer (etaf-ascii-video--player-buffer player)))
+    (when (eq (plist-get spec :mode) 'graphics)
+      (let* ((window (get-buffer-window buffer t))
+             (frame (if window (window-frame window) (selected-frame))))
+        (unless (display-graphic-p frame)
+          (user-error "Graphics mode requires a graphical frame"))
+        (setf (plist-get spec :pixel-width)
+              (* (etaf-ascii-video--player-columns player) (frame-char-width frame))
+              (plist-get spec :pixel-height)
+              (* (etaf-ascii-video--player-rows player) (frame-char-height frame)))))
+    (let ((source (etaf-ascii-video--source-start
+                   spec
+                   (etaf-ascii-video--player-columns player)
+                   (etaf-ascii-video--player-rows player)
+                   :speed (etaf-ascii-video--player-speed player)
+                   :start (or start 0))))
+      (setf (etaf-ascii-video--player-source player) source
+            (etaf-ascii-video--player-base player) (or start 0)
+            (etaf-ascii-video--player-ended player) nil
+            (etaf-ascii-video--player-finished player) nil
+            (etaf-ascii-video--player-error player) nil)
+      source)))
 
 (defun etaf-ascii-video--player-restart (player &optional start)
   "Restart PLAYER's producer, keeping its position unless START is given."
@@ -332,18 +346,21 @@ a resume or step can seek back instead of catching up to wall-clock time."
           (etaf-ascii-video--player-play player))
       (etaf-ascii-video--player-refresh player))))
 
-(defun etaf-ascii-video--player-set-color (player color)
-  "Turn PLAYER's true-color half-block mode on or off and restart decoding."
-  (unless (eq (and (plist-get (etaf-ascii-video--player-spec player) :color) t)
-              (and color t))
-    (setf (plist-get (etaf-ascii-video--player-spec player) :color) (and color t))
-    (let ((playing (etaf-ascii-video--player-playing player)))
-      (if playing
-          (progn
-            (etaf-ascii-video--player-restart player)
-            (etaf-ascii-video--player-play player))
-        (etaf-ascii-video--player-stop-source player)
-        (etaf-ascii-video--player-refresh player)))))
+(defun etaf-ascii-video--player-set-mode (player mode)
+  "Switch PLAYER to MODE, one of `mono', `color' or `graphics'.
+The producer restarts at the current position with the new output format."
+  (unless (memq mode '(mono color graphics))
+    (user-error "Unknown etaf-ascii-video render mode: %S" mode))
+  (let ((spec (etaf-ascii-video--player-spec player)))
+    (unless (eq (plist-get spec :mode) mode)
+      (setf (plist-get spec :mode) mode)
+      (let ((playing (etaf-ascii-video--player-playing player)))
+        (if playing
+            (progn
+              (etaf-ascii-video--player-restart player)
+              (etaf-ascii-video--player-play player))
+          (etaf-ascii-video--player-stop-source player)
+          (etaf-ascii-video--player-refresh player))))))
 
 (defun etaf-ascii-video--player-set-grid (player columns rows)
   "Resize PLAYER's canvas to COLUMNS by ROWS and restart its producer."

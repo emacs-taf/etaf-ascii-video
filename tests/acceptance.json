@@ -50,6 +50,11 @@
       "purpose": "Color mode publishes half-block cells with the predicted foreground and background colors per cell and switches back to density characters when disabled."
     },
     {
+      "name": "etaf-ascii-video-tests-graphics-image-frames",
+      "file": "tests/etaf-ascii-video-tests.el",
+      "purpose": "Graphics mode publishes one JPEG image display per frame and reports the graphics mode in the status line."
+    },
+    {
       "name": "etaf-ascii-video-tests-plays-demo-with-real-ffmpeg",
       "file": "tests/etaf-ascii-video-tests.el",
       "purpose": "The built-in demo plays through a real ffmpeg when one is installed, producing the requested line shape."

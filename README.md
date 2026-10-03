@@ -13,10 +13,12 @@ the playback rate, so the incremental behavior is visible while it runs.
 
 - Playback of local video files through ffmpeg; the built-in demo generates a
   test pattern with ffmpeg's `lavfi` input, so no file is needed.
-- Two rendering modes. The default monochrome mode maps each pixel to one
+- Three rendering modes. The default monochrome mode maps each pixel to one
   density-ramp character. True-color half-block mode (`c`) renders two full
   color pixels per character cell with `▀` (top pixel as foreground, bottom as
   background), keeping the video's colors at double the vertical resolution.
+  Graphics mode (`i`) publishes one scaled JPEG per frame as an image display,
+  which is the only mode that stays smooth at a full-window size.
 - A canvas that fits the window (and follows resizes), four grid presets, and
   explicit `etaf-ascii-video-set-grid` for scripts.
 - Play, pause, single frame stepping, seeking, and 0.5x to 8x rates.
@@ -68,6 +70,7 @@ dimensions and rate and the status line shows no total duration.
 | `+` / `-` | raise or lower the playback rate |
 | `1` .. `4` | grid presets (64, 96, 128, 176 columns, rows follow the aspect) |
 | `c` | toggle true-color half-block rendering |
+| `i` | toggle graphics (image) rendering |
 | `F` | fit the canvas to the window |
 | `o` / `d` | open a file / replay the built-in demo |
 | `?` / `q` | help / close |

@@ -16,10 +16,17 @@ Environment:
   FAKE_FFMPEG_HEIGHT    override the parsed scale height
 """
 
+import base64
 import os
 import re
 import sys
 import time
+
+JPEG_FRAME = base64.b64decode(
+    "/9j/4AAQSkZJRgABAQEAYABgAAD/2wBDAAgGBgcGBQgHBwcJCQgKDBQNDAsLDBkSEw8UHRofHh0a"
+    "HBwgJC4nICIsIxwcKDcpLDAxNDQ0Hyc5PTgyPC4zNDL/wAALCAABAAEBAREA/8QAFAABAAAAAAAA"
+    "AAAAAAAAAAAACf/EABQQAQAAAAAAAAAAAAAAAAAAAAD/2gAIAQEAAD8AVN//2Q=="
+)
 
 
 def value_for(pattern, x, width, index):
@@ -53,9 +60,17 @@ def main():
     for index, argument in enumerate(argv):
         if argument == "-pix_fmt" and index + 1 < len(argv):
             pixel_format = argv[index + 1]
+    graphics = "mjpeg" in argv or "image2pipe" in argv
 
     out = sys.stdout.buffer
     for frame_index in range(frames):
+        if graphics:
+            # Graphics mode consumes complete JPEG frames delimited by SOI/EOI.
+            out.write(JPEG_FRAME)
+            out.flush()
+            if interval > 0:
+                time.sleep(interval)
+            continue
         frame = bytearray()
         for y in range(height):
             row = bytearray()
