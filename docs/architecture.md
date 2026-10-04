@@ -2,102 +2,71 @@
 
 ## Responsibilities
 
-`etaf-ascii-video` is an application. It owns decoding arguments, playback
-state, pixel-to-character mapping and display pacing; rendering and retained
-publication stay with ETAF and Ebox. No framework mechanism is re-implemented
-here: the hot path is ETAF's public retained Host content boundary
-(`etaf-runtime-update-host-contents`).
+`etaf-ascii-video` is an application. It owns the buffer, the fitted canvas
+size, the render mode choice, the status line and the keys. Decoding, frame
+mapping and publication belong to ETAF's native `etaf-video` Component, which
+this application places in a View and drives through its public handle
+control functions. No framework mechanism is re-implemented here.
 
 | Module | Owns |
 | --- | --- |
-| `etaf-ascii-video-grid` | aspect fitting and the pixel mapping, both the grayscale density ramp and the true-color half-block grid |
-| `etaf-ascii-video-source` | source normalization, ffprobe metadata, ffmpeg arguments, the binary process and the latest-frame buffer |
-| `etaf-ascii-video-player` | refs, display timer, frame presentation, playback controls, status line text |
-| `etaf-ascii-video-app` | buffer, View, keymap, window fitting, mount/unmount, public commands |
+| `etaf-ascii-video-grid` | aspect fitting of a video size into a character canvas |
+| `etaf-ascii-video-app` | player state (canvas, mode, speed, status), the View, the buffer, the keymap, window fitting and the public commands |
 
 The root entry re-exports the supported subset; everything unlisted is
 internal.
 
 ## Data flow
 
-1. `etaf-ascii-video-open` normalizes the source, probes a file with ffprobe,
-   fits a canvas to the selected window and mounts a View whose grid box and
-   status box read player refs.
-2. `etaf-ascii-video-source-start` runs ffmpeg with
-   `-readrate SPEED -vf scale=COLUMNS:ROWS:flags=area -f rawvideo -pix_fmt gray
-   -`. A process filter with binary coding cuts the byte stream into
-   COLUMNS x ROWS frames. Only the newest complete frame is retained; older
-   ones increment the drop counter.
-3. The display timer claims the newest frame at `etaf-ascii-video-display-fps`.
-   The grid module translates bytes to ramp characters in a reusable unibyte
-   work buffer, and the player publishes the grid text and the status text as
-   one retained update of the two Hosts.
-4. Controls mutate player state and, when ffmpeg must restart (seek, speed,
-   grid), spawn a fresh producer at the current position. Returning from the
-   end replays from zero.
-5. `etaf-ascii-video-close` cancels the timer, terminates the producer and
-   unmounts the Runtime. A failed open runs the same teardown, so no partial
-   player survives a `user-error`.
+1. `etaf-ascii-video-open` normalizes and probes the source once through
+   `etaf-video-source-info`, chooses the render mode, fits a canvas to the
+   selected window and mounts a View with the native `etaf-video` Component
+   plus a status text Host.
+2. The Component owns the playback session: ffmpeg decodes at the canvas size,
+   the session keeps only the newest complete frame, and each displayed frame
+   is mapped to ramp characters or half-block cells and published through
+   `etaf-runtime-update-host-content` on the canvas Host.
+3. The application refreshes the status Host from `etaf-video-state` four
+   times per second, so the frame path stays free of status work.
+4. Controls are declarative or imperative depending on the fact: canvas size,
+   render mode and rate are View props (changing a prop restarts the session
+   at the current position), while play/pause, step and seek call the
+   Component's handle functions.
+5. `etaf-ascii-video-close` cancels the status timer and unmounts the Runtime,
+   which destroys the session. A failed open runs the same teardown, so no
+   partial player survives a `user-error`.
 
 ## Invariants
 
-- **One writer per fact.** The player owns playback state, the source owns the
-  byte stream, ETAF owns the buffer text. Views never decode; commands never
-  write buffer text directly.
-- **One publication per displayed frame.** A frame updates the canvas Host and
-  the status Host in one `etaf-runtime-update-host-contents` call, which is one
-  retained Ebox publication rather than an ordinary ETAF render. The
+- **One owner per fact.** The native session owns decoding, position and
+  pacing; the application owns canvas size, mode, rate and status text; ETAF
+  owns publication. The View never decodes and commands never write buffer
+  text directly.
+- **One publication per displayed frame.** The canvas Host receives one
+  retained content update per frame, not an ordinary ETAF render. The
   monochrome grid creates no per-pixel properties; the color grid carries one
   `face` property per cell, so its publication work is proportional to the
-  cell count; the graphics mode carries one image display property per frame,
-  independent of the pixel count.
-- **Latest frame wins.** The filter retains at most one complete frame; a slow
+  cell count.
+- **Probe once.** `etaf-video-source-info` returns authoritative metadata that
+  the Component accepts as its source, so resizing or restarting a video does
+  not repeat the ffprobe call.
+- **Latest frame wins.** The session retains at most one complete frame; a slow
   display drops frames and the clock advances from delivered frames, so
   playback never replays a backlog.
-- **Pause does not catch up.** Pausing closes the producer and remembers the
+- **Pause does not catch up.** Pausing releases the producer and remembers the
   position; resuming spawns a producer with `-ss POSITION` instead of
   continuing a wall-clock-paced one, so a long pause never produces a
-  fast-forward burst when playback resumes.
-- **Canvas resize is a normal publication.** Box dimensions read player refs;
-  a resize sets the refs and flushes, then the producer restarts with the new
-  scale. Frame updates continue through the retained content path afterwards.
-- **Mapping is pure and bounded.** The work buffer and translation table are
-  reused per player; mapping cost is proportional to the canvas, independent
-  of the encoded frame.
+  fast-forward burst.
 - **Cleanup is unconditional.** Every open failure, close and buffer kill
-  releases the timer, the process and both work buffers.
+  cancels the status timer and unmounts the Runtime, destroying the session,
+  the producer and the audio sidecar with it.
 
 ## Measured behavior
 
-Batch probes (no redisplay) on the reference checkout, 160x45 canvas, 30
-frames with 5%, 30% and 80% of cells changed, report a median retained
-publication of 3-4 ms per frame with `span-patch` / `owner-scoped`, one dirty
-node, one patch and no full-root publication, and 1-2 ms for the byte to
-character mapping of 7200 bytes. The cost is roughly independent of the
-changed-cell ratio, because the changed text is one declared patch of the
-canvas Host; the framework's granularity is the Host, not individual character
-runs.
-
-A GUI session on the same machine (ffmpeg 9.0.2, a real local H.264 file,
-the application's own status line) measures a median publication of about 24
-ms with 11-14 presented frames per second on a 199x48 canvas, and about 23
-presented frames per second on a forced 160x45 canvas; the display timer asks
-for 30. The gap between the batch publication cost and the GUI session is
-redisplay and font work outside the publication call. Quantifying and
-reducing it is the framework-probe work this application exists to drive, not
-a capability this application claims to have solved.
-
-Color mode was measured separately, because EBox's retained content
-publication performs one property operation per `face` run. Batch medians for
-one frame: 48x14 (672 cells) 53 ms, 64x18 (1152 cells) 81 ms, 80x24 (1920
-cells) 132 ms, 160x45 (7200 cells) 567 ms, against about 8 ms for a
-monochrome 160x45 frame with no per-cell properties. Each colored frame
-reports `span-patch` / `owner-scoped`, one dirty node, one patch, no full-root
-publication and one property operation per cell. Reducing that per-cell cost
-is the next framework-probe task.
-
-Graphics mode publishes one JPEG per frame as an image display, so its cost
-does not grow with the cell count: a GUI session at the full-window canvas
-136x48 measured about 8.5 ms per frame and 22-26 presented frames per second,
-including JPEG decoding and redisplay. It requires a graphical frame; the
-monochrome and color modes remain available on terminals.
+The character player's costs are the native Component's costs. Batch probes on
+the reference checkout measured roughly 8 ms for a monochrome 160x45 retained
+publication and one `face` property operation per cell for color frames (about
+53 ms per 48x14 frame and 132 ms per 80x24 frame), which is why
+`etaf-ascii-video-color-columns` caps the fitted color width. Image frames,
+Retina-sharp decoding and audio belong to the companion `etaf-video-player`
+application and the framework's own measurements.

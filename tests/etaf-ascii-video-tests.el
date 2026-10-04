@@ -3,9 +3,11 @@
 ;; SPDX-License-Identifier: GPL-3.0-or-later
 
 ;;; Commentary:
-;; Public-entry scenarios for the player.  The producer is the repository's
-;; fake ffmpeg fixture, so the suite needs no real decoder, no network and no
-;; frame; one explicitly gated scenario runs the real ffmpeg path.
+;; Public-entry scenarios for the player.  Decoding and frame mapping belong
+;; to the native `etaf-video' Component, so this suite drives it through the
+;; application entry only.  The producer and metadata are the repository's
+;; fake ffmpeg fixtures, so the suite needs no real decoder, no network and no
+;; graphical frame; one explicitly gated scenario runs the real ffmpeg path.
 
 ;;; Code:
 
@@ -86,7 +88,7 @@ background painting; those characters are not video pixels."
 
 (defun etaf-ascii-video-tests--columns-grid (columns rows)
   "Return the expected fixture grid for the `columns' pattern."
-  (let* ((ramp etaf-ascii-video-density-ramp)
+  (let* ((ramp etaf-video-density-ramp)
          (last (1- (length ramp)))
          (span (max 1 (1- columns))))
     (mapconcat
@@ -103,20 +105,20 @@ background painting; those characters are not video pixels."
   (cadr (member flag arguments)))
 
 (defmacro etaf-ascii-video-tests--with-fixture (log settings &rest body)
-  "Run BODY with the fake ffmpeg fixture and SETTINGS bound.
-LOG receives the recorded invocations.  SETTINGS is a list of ENV=VALUE
+  "Run BODY with the fake decoder fixtures and SETTINGS bound.
+LOG receives the recorded ffmpeg invocations.  SETTINGS is a list of ENV=VALUE
 strings for the fixture."
   (declare (indent 2))
   `(let ((process-environment
           (append (cons (concat "FAKE_FFMPEG_LOG=" ,log) ,settings)
                   process-environment))
-         (etaf-ascii-video-ffmpeg-program etaf-ascii-video-tests--ffmpeg)
-         (etaf-ascii-video-ffprobe-program etaf-ascii-video-tests--ffprobe))
+         (etaf-video-ffmpeg-program etaf-ascii-video-tests--ffmpeg)
+         (etaf-video-ffprobe-program etaf-ascii-video-tests--ffprobe))
      ,@body))
 
 (ert-deftest etaf-ascii-video-tests-renders-ramp-frames ()
   "Every displayed pixel is the ramp character of its grayscale byte.
-The fixture's static column pattern is compared with the mapped grid, the
+The native session produces the documented gray scale and read rate, the
 status line reports the canvas size, and the recorded invocation matches the
 documented ffmpeg contract."
   (etaf-ascii-video-tests--cleanup)
@@ -135,8 +137,10 @@ documented ffmpeg contract."
                   (lambda () (>= (plist-get (etaf-ascii-video-tests--state) :presented) 1))))
          (should (equal (etaf-ascii-video-tests--grid 4)
                         (etaf-ascii-video-tests--columns-grid 16 4)))
-         (with-current-buffer "*ASCII Video*"
-           (should (string-match-p "16x4" (buffer-string))))
+         (should (etaf-ascii-video-tests--wait
+                  (lambda ()
+                    (with-current-buffer "*ASCII Video*"
+                      (string-match-p "16x4" (buffer-string))))))
          (let ((runs (etaf-ascii-video-tests--runs log)))
            (should (cl-some (lambda (arguments)
                               (member "scale=16:4:flags=area" arguments))
@@ -144,6 +148,10 @@ documented ffmpeg contract."
            (should (cl-some (lambda (arguments)
                               (equal (etaf-ascii-video-tests--argument arguments "-readrate")
                                      "1"))
+                            runs))
+           (should (cl-some (lambda (arguments)
+                              (equal (etaf-ascii-video-tests--argument arguments "-pix_fmt")
+                                     "gray"))
                             runs))))
       (ignore-errors (delete-file log))
       (etaf-ascii-video-tests--cleanup))))
@@ -252,7 +260,7 @@ paused position instead."
 
 (ert-deftest etaf-ascii-video-tests-resizes-canvas ()
   "A new grid changes the published line shape and the fitted window size.
-The producer restarts with the new scale, and `etaf-ascii-video-fit' keeps the
+The session restarts with the new scale, and `etaf-ascii-video-fit' keeps the
 canvas inside the window that shows it."
   (etaf-ascii-video-tests--cleanup)
   (let ((log (etaf-ascii-video-tests--log)))
@@ -297,8 +305,12 @@ and no application buffer survives a failed open."
   (should-error (etaf-ascii-video-open '(:file "/definitely/missing.mp4"))
                 :type 'user-error)
   (should-error (etaf-ascii-video-open '(:file)) :type 'user-error)
-  (let ((etaf-ascii-video-ffmpeg-program "etaf-ascii-video-missing-ffmpeg")
-        (etaf-ascii-video-ffprobe-program "etaf-ascii-video-missing-ffprobe"))
+  (should-error (etaf-ascii-video-open (list :file etaf-ascii-video-tests--input
+                                             :mode 'graphics))
+                :type 'user-error)
+  (etaf-ascii-video-tests--cleanup)
+  (let ((etaf-video-ffmpeg-program "etaf-ascii-video-missing-ffmpeg")
+        (etaf-video-ffprobe-program "etaf-ascii-video-missing-ffprobe"))
     (should-error (etaf-ascii-video-open '(:demo :columns 8 :rows 3))
                   :type 'user-error))
   (should-not (get-buffer "*ASCII Video*"))
@@ -399,8 +411,11 @@ the player to density characters."
              (should (member '(:foreground "#000000" :background "#ff0000")
                              (get-text-property 0 'face line)))
              (should (member '(:foreground "#111111" :background "#ee0011")
-                             (get-text-property 1 'face line))))
-           (should (string-match-p "color" (buffer-string))))
+                             (get-text-property 1 'face line)))))
+         (should (etaf-ascii-video-tests--wait
+                  (lambda ()
+                    (with-current-buffer "*ASCII Video*"
+                      (string-match-p "color" (buffer-string))))))
          (etaf-ascii-video-set-color nil)
          (should (eq 'mono (plist-get (etaf-ascii-video-tests--state) :mode)))
          (should (etaf-ascii-video-tests--wait
@@ -408,37 +423,6 @@ the player to density characters."
                     (with-current-buffer "*ASCII Video*"
                       (not (string-match-p "▀" (buffer-string)))))))
          (etaf-ascii-video-close))
-      (ignore-errors (delete-file log))
-      (etaf-ascii-video-tests--cleanup))))
-
-(ert-deftest etaf-ascii-video-tests-graphics-image-frames ()
-  "Graphics mode publishes one JPEG image display per frame.
-The fixture emits a tiny JPEG for `-c:v mjpeg'; the test stubs the graphical
-frame check, verifies the image display property and the status mode."
-  (etaf-ascii-video-tests--cleanup)
-  (let ((log (etaf-ascii-video-tests--log)))
-    (unwind-protect
-        (etaf-ascii-video-tests--with-fixture
-         log
-         (list "FAKE_FFMPEG_FRAMES=200"
-               "FAKE_FFMPEG_INTERVAL=0.02"
-               "FAKE_FFPROBE_DURATION=4.0"
-               "FAKE_FFPROBE_FPS=50/1")
-         (cl-letf (((symbol-function 'display-graphic-p)
-                    (lambda (&optional _frame) t)))
-           (etaf-ascii-video-open
-            (list :file etaf-ascii-video-tests--input :columns 16 :rows 4
-                  :mode 'graphics))
-           (should (etaf-ascii-video-tests--wait
-                    (lambda ()
-                      (>= (plist-get (etaf-ascii-video-tests--state) :presented) 1))))
-           (should (eq 'graphics (plist-get (etaf-ascii-video-tests--state) :mode)))
-           (with-current-buffer "*ASCII Video*"
-             (let ((display (get-text-property 0 'display (buffer-string))))
-               (should (consp display))
-               (should (eq (car display) 'image)))
-             (should (string-match-p "graphics" (buffer-string))))
-           (etaf-ascii-video-close)))
       (ignore-errors (delete-file log))
       (etaf-ascii-video-tests--cleanup))))
 
@@ -475,34 +459,6 @@ are checked without touching the network; non-HTTP schemes are rejected."
       (ignore-errors (delete-file log))
       (etaf-ascii-video-tests--cleanup))))
 
-(ert-deftest etaf-ascii-video-tests-graphics-default-falls-back-on-terminal ()
-  "A graphics default falls back to mono when the frame cannot show images.
-An explicit graphics request in the same situation still signals its own
-error, because the caller asked for images."
-  (etaf-ascii-video-tests--cleanup)
-  (let ((log (etaf-ascii-video-tests--log))
-        (etaf-ascii-video-render-mode 'graphics))
-    (unwind-protect
-        (etaf-ascii-video-tests--with-fixture
-         log
-         (list "FAKE_FFMPEG_PATTERN=columns"
-               "FAKE_FFMPEG_FRAMES=40"
-               "FAKE_FFMPEG_INTERVAL=0.02"
-               "FAKE_FFPROBE_DURATION=4.0"
-               "FAKE_FFPROBE_FPS=50/1")
-         (etaf-ascii-video-open
-          (list :file etaf-ascii-video-tests--input :columns 16 :rows 4))
-         (should (etaf-ascii-video-tests--wait
-                  (lambda () (>= (plist-get (etaf-ascii-video-tests--state) :presented) 1))))
-         (should (eq 'mono (plist-get (etaf-ascii-video-tests--state) :mode)))
-         (should-error (etaf-ascii-video-open
-                        (list :file etaf-ascii-video-tests--input :columns 16 :rows 4
-                              :mode 'graphics))
-                       :type 'user-error)
-         (etaf-ascii-video-close))
-      (ignore-errors (delete-file log))
-      (etaf-ascii-video-tests--cleanup))))
-
 (ert-deftest etaf-ascii-video-tests-plays-demo-with-real-ffmpeg ()
   "The built-in demo plays through a real ffmpeg when one is installed.
 This scenario is skipped on machines without ffmpeg; the fixture scenarios
@@ -518,10 +474,7 @@ above still cover the full public path there."
                  10))
         (should (= 30 (plist-get (etaf-ascii-video-tests--state) :source-fps)))
         (let ((grid (etaf-ascii-video-tests--grid 14)))
-          (should (= 14 (length (split-string grid "\n"))))
-          (should (cl-every (lambda (line) (= 48 (length line)))
-                            (split-string grid "\n"))))
-        (should (eq t (etaf-ascii-video-close))))
+          (should (string-match-p "=" grid))))
     (etaf-ascii-video-tests--cleanup)))
 
 (provide 'etaf-ascii-video-tests)

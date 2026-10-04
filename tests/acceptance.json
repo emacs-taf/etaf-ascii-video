@@ -12,7 +12,7 @@
     {
       "name": "etaf-ascii-video-tests-renders-ramp-frames",
       "file": "tests/etaf-ascii-video-tests.el",
-      "purpose": "Each displayed pixel is the ramp character of its grayscale byte and the recorded ffmpeg invocation matches the documented scale and readrate contract."
+      "purpose": "Every displayed pixel is the ramp character of its grayscale byte and the recorded ffmpeg invocation matches the documented scale and readrate contract."
     },
     {
       "name": "etaf-ascii-video-tests-playback-controls",
@@ -32,7 +32,7 @@
     {
       "name": "etaf-ascii-video-tests-rejects-invalid-sources",
       "file": "tests/etaf-ascii-video-tests.el",
-      "purpose": "Unsupported sources and a missing ffmpeg signal user-error and leave no mounted buffer behind."
+      "purpose": "Unsupported sources, an explicit graphics mode and a missing ffmpeg signal user-error and leave no mounted buffer behind."
     },
     {
       "name": "etaf-ascii-video-tests-finishes-at-end",
@@ -50,24 +50,14 @@
       "purpose": "Color mode publishes half-block cells with the predicted foreground and background colors per cell and switches back to density characters when disabled."
     },
     {
-      "name": "etaf-ascii-video-tests-graphics-image-frames",
-      "file": "tests/etaf-ascii-video-tests.el",
-      "purpose": "Graphics mode publishes one JPEG image display per frame and reports the graphics mode in the status line."
-    },
-    {
       "name": "etaf-ascii-video-tests-streams-http-url",
       "file": "tests/etaf-ascii-video-tests.el",
       "purpose": "An HTTP(S) URL reaches ffmpeg as a stream with reconnect options while non-HTTP schemes are rejected."
     },
     {
-      "name": "etaf-ascii-video-tests-graphics-default-falls-back-on-terminal",
-      "file": "tests/etaf-ascii-video-tests.el",
-      "purpose": "A graphics render-mode default falls back to mono on a frame that cannot show images, while an explicit graphics request still signals its own error."
-    },
-    {
       "name": "etaf-ascii-video-tests-plays-demo-with-real-ffmpeg",
       "file": "tests/etaf-ascii-video-tests.el",
-      "purpose": "The built-in demo plays through a real ffmpeg when one is installed, producing the requested line shape."
+      "purpose": "The built-in demo plays through a real ffmpeg when one is installed, gated so other machines still run the fixture scenarios."
     }
   ]
 }

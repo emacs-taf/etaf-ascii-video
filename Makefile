@@ -3,8 +3,7 @@
 EMACS ?= emacs
 PROVIDER_ROOT ?= $(if $(wildcard ../etaf/etaf.el),..,../..)
 LOAD_PATH = -L . -L lisp -L tests $(foreach package,etaf etaf-ui ebox ecss,-L $(PROVIDER_ROOT)/$(package))
-SOURCES = lisp/etaf-ascii-video-grid.el lisp/etaf-ascii-video-source.el
-SOURCES += lisp/etaf-ascii-video-player.el lisp/etaf-ascii-video-app.el
+SOURCES = lisp/etaf-ascii-video-grid.el lisp/etaf-ascii-video-app.el
 SOURCES += etaf-ascii-video.el
 SOURCES += $(wildcard examples/*.el)
 
