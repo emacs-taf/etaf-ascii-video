@@ -60,6 +60,11 @@
       "purpose": "An HTTP(S) URL reaches ffmpeg as a stream with reconnect options while non-HTTP schemes are rejected."
     },
     {
+      "name": "etaf-ascii-video-tests-graphics-default-falls-back-on-terminal",
+      "file": "tests/etaf-ascii-video-tests.el",
+      "purpose": "A graphics render-mode default falls back to mono on a frame that cannot show images, while an explicit graphics request still signals its own error."
+    },
+    {
       "name": "etaf-ascii-video-tests-plays-demo-with-real-ffmpeg",
       "file": "tests/etaf-ascii-video-tests.el",
       "purpose": "The built-in demo plays through a real ffmpeg when one is installed, producing the requested line shape."

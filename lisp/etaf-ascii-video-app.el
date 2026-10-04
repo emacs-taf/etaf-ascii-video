@@ -176,8 +176,16 @@ and `:rows'."
   (interactive (list (let ((name (read-file-name "Video file (empty for demo): " nil nil nil)))
                        (if (string-empty-p name) nil name))))
   (let* ((spec (etaf-ascii-video--normalize-source source))
-         (spec (plist-put spec :mode
-                          (or (plist-get spec :mode) etaf-ascii-video-render-mode))))
+         (explicit (plist-get spec :mode))
+         (spec (plist-put spec :mode (or explicit etaf-ascii-video-render-mode)))
+         ;; The default mode may be `graphics' while this frame cannot show
+         ;; images; fall back to the monochrome mode instead of failing.  An
+         ;; explicit `:mode graphics' still signals its own error.
+         (spec (if (and (not explicit)
+                        (eq (plist-get spec :mode) 'graphics)
+                        (not (display-graphic-p (window-frame (selected-window)))))
+                   (plist-put spec :mode 'mono)
+                 spec)))
     (when (get-buffer etaf-ascii-video--buffer-name)
       (with-current-buffer (get-buffer etaf-ascii-video--buffer-name)
         (when etaf-ascii-video--player

@@ -475,6 +475,34 @@ are checked without touching the network; non-HTTP schemes are rejected."
       (ignore-errors (delete-file log))
       (etaf-ascii-video-tests--cleanup))))
 
+(ert-deftest etaf-ascii-video-tests-graphics-default-falls-back-on-terminal ()
+  "A graphics default falls back to mono when the frame cannot show images.
+An explicit graphics request in the same situation still signals its own
+error, because the caller asked for images."
+  (etaf-ascii-video-tests--cleanup)
+  (let ((log (etaf-ascii-video-tests--log))
+        (etaf-ascii-video-render-mode 'graphics))
+    (unwind-protect
+        (etaf-ascii-video-tests--with-fixture
+         log
+         (list "FAKE_FFMPEG_PATTERN=columns"
+               "FAKE_FFMPEG_FRAMES=40"
+               "FAKE_FFMPEG_INTERVAL=0.02"
+               "FAKE_FFPROBE_DURATION=4.0"
+               "FAKE_FFPROBE_FPS=50/1")
+         (etaf-ascii-video-open
+          (list :file etaf-ascii-video-tests--input :columns 16 :rows 4))
+         (should (etaf-ascii-video-tests--wait
+                  (lambda () (>= (plist-get (etaf-ascii-video-tests--state) :presented) 1))))
+         (should (eq 'mono (plist-get (etaf-ascii-video-tests--state) :mode)))
+         (should-error (etaf-ascii-video-open
+                        (list :file etaf-ascii-video-tests--input :columns 16 :rows 4
+                              :mode 'graphics))
+                       :type 'user-error)
+         (etaf-ascii-video-close))
+      (ignore-errors (delete-file log))
+      (etaf-ascii-video-tests--cleanup))))
+
 (ert-deftest etaf-ascii-video-tests-plays-demo-with-real-ffmpeg ()
   "The built-in demo plays through a real ffmpeg when one is installed.
 This scenario is skipped on machines without ffmpeg; the fixture scenarios
