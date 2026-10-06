@@ -11,6 +11,10 @@ a full re-render. This application owns the buffer, the fitted canvas size,
 the render mode, the status line and the keys. For the sharp, full-window
 image player with sound, use the companion `etaf-video-player`.
 
+A local video playing as true-color half blocks:
+
+![A local video playing as true-color half blocks](examples/etaf-ascii-video-wide.png)
+
 ## Capabilities
 
 - Playback of local video files through ffmpeg; the built-in demo generates a
