@@ -5,7 +5,7 @@
 ;; Version: 0.1.0
 ;; Package-Requires: ((emacs "29.1") (etaf "0.2.1"))
 ;; Keywords: multimedia, ui
-;; URL: https://gitea.vhkd.top/geekinney/etaf-ascii-video
+;; URL: https://forgejo.vhkd.top/emacs-taf/etaf-ascii-video
 
 ;;; Commentary:
 

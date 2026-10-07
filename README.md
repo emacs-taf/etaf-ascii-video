@@ -5,7 +5,7 @@ as pure characters, in the two character render modes of ETAF's native
 `etaf-video` Component: a density ramp (one character per pixel) and true-color
 half blocks (`▀`, two full-color pixels per cell). The native Component decodes
 with ffmpeg and publishes every frame through
-[ETAF](https://gitea.vhkd.top/geekinney/etaf)'s retained content boundary, so
+[ETAF](https://forgejo.vhkd.top/emacs-taf/etaf)'s retained content boundary, so
 one displayed frame is one incremental publication of a fixed canvas Host, not
 a full re-render. This application owns the buffer, the fitted canvas size,
 the render mode, the status line and the keys. For the sharp, full-window
