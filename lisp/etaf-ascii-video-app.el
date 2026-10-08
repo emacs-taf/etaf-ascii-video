@@ -251,9 +251,7 @@ The retained refs returned here are closed over by the application View."
         (etaf-ascii-video--refit etaf-ascii-video--player window)))))
 
 (defun etaf-ascii-video--refit (player window)
-  "Fit PLAYER to WINDOW and republish its canvas size."
-  (when-let* ((runtime (etaf-runtime-for-buffer (etaf-ascii-video--player-buffer player))))
-    (etaf-runtime-refit runtime (window-body-width window t) (window-body-height window)))
+  "Fit PLAYER's canvas grid to WINDOW; the mount follows the window itself."
   (let* ((spec (etaf-ascii-video--player-spec player))
          (grid (etaf-ascii-video--window-grid
                 window (etaf-ascii-video--aspect spec)
@@ -355,9 +353,7 @@ sources signal `user-error' before any process starts."
                             (set-display-table-slot table 'truncation ?\s)
                             table))
               (use-local-map etaf-ascii-video-mode-map)
-              (etaf-mount buffer (etaf-ascii-video--view player)
-                          (list :viewport-width (window-body-width window t)
-                                :viewport-height (window-body-height window))))
+              (etaf-mount buffer (etaf-ascii-video--view player)))
             (let ((display-buffer-overriding-action '((display-buffer-same-window))))
               (pop-to-buffer buffer))
             (when-let* ((shown (get-buffer-window buffer t)))
