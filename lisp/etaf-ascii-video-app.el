@@ -111,7 +111,7 @@ Playback lives in the native `etaf-video' session addressed by HANDLE; this
 record owns the canvas size, the render mode, the playback rate, the status
 line and its refresh timer."
   buffer spec mode handle
-  columns rows speed
+  columns rows speed window-rows
   columns-ref rows-ref mode-ref speed-ref
   hud-text hud-text-ref hud-timer
   sample sample-fps)
@@ -244,14 +244,19 @@ The retained refs returned here are closed over by the application View."
              (expr (etaf-value (etaf-ascii-video--player-hud-text-ref player))))))))
 
 (defun etaf-ascii-video--window-size-changed (frame)
-  "Refit every ASCII video shown on FRAME after a window resize."
+  "Refit every ASCII video shown on FRAME after a window resize.
+Lines borrowed by the minibuffer keep the grid the player committed."
   (dolist (window (window-list frame))
     (with-current-buffer (window-buffer window)
       (when etaf-ascii-video--player
-        (etaf-ascii-video--refit etaf-ascii-video--player window)))))
+        (unless (etaf-transient-space-borrowed-p
+                 window (etaf-ascii-video--player-window-rows
+                         etaf-ascii-video--player))
+          (etaf-ascii-video--refit etaf-ascii-video--player window))))))
 
 (defun etaf-ascii-video--refit (player window)
   "Fit PLAYER's canvas grid to WINDOW; the mount follows the window itself."
+  (setf (etaf-ascii-video--player-window-rows player) (window-body-height window))
   (let* ((spec (etaf-ascii-video--player-spec player))
          (grid (etaf-ascii-video--window-grid
                 window (etaf-ascii-video--aspect spec)

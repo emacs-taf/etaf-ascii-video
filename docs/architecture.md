@@ -21,7 +21,8 @@ internal.
 1. `etaf-ascii-video-open` normalizes and probes the source once through
    `etaf-video-source-info`, chooses the render mode, fits a canvas to the
    selected window and mounts a View with the native `etaf-video` Component
-   plus a status text Host.
+   plus a status text Host.  Lines borrowed by a transient minibuffer are not
+   a resize; the committed grid stays until the prompt closes.
 2. The Component owns the playback session: ffmpeg decodes at the canvas size,
    the session keeps only the newest complete frame, and each displayed frame
    is mapped to ramp characters or half-block cells and published through

@@ -31,3 +31,8 @@
   `etaf-ascii-video-ffmpeg-program` and `etaf-ascii-video-ffprobe-program`
   were removed in favor of the `etaf-video-*` variables, and the `graphics`
   render mode moved to the companion `etaf-video-player` application.
+
+### Fixed
+
+- The minibuffer and echo area borrow window lines without refitting the
+  canvas: the player keeps the grid it committed until the prompt closes.
