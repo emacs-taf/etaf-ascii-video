@@ -228,6 +228,7 @@ The retained refs returned here are closed over by the application View."
   "Return the mountable View of PLAYER."
   (etaf-view
    (flex :flex-direction 'column :width '(vw 100)
+         :on-direction #'etaf-ascii-video--direction
          :background-color "#0B0C0E" :color "#C9CDD3"
      (etaf-video :src (etaf-ascii-video--player-spec player)
                  :mode (if (eq (etaf-value (etaf-ascii-video--player-mode-ref player))
@@ -515,6 +516,13 @@ changing it, and signals `user-error' outside a player buffer."
   (interactive)
   (etaf-ascii-video-seek
    (+ (plist-get (etaf-ascii-video-state) :position) 5)))
+
+(defun etaf-ascii-video--direction (direction)
+  "Seek the media with DIRECTION and return the result symbol."
+  (pcase direction
+    ('left (etaf-ascii-video--backward-command) 'handled)
+    ('right (etaf-ascii-video--forward-command) 'handled)
+    (_ 'release)))
 
 (defun etaf-ascii-video--backward-command ()
   "Seek five seconds backward."
