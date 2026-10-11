@@ -77,7 +77,7 @@ defaults are 640x360 when ffprobe is unavailable.
 | `c` | toggle true-color half-block rendering |
 | `F` | fit to the window |
 | `o`, `u`, `d` | open a file / open a URL / demo |
-| `?`, `q` | help / close |
+| `C-c h`, `q` | help / close |
 
 `F` and `etaf-ascii-video-fit` reserve one row for the status line and refit
 the ETAF viewport before changing the grid. The same fitting runs

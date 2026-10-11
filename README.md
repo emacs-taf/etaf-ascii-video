@@ -82,7 +82,7 @@ variables documented in ETAF's manual.
 | `c` | toggle true-color half-block rendering |
 | `F` | fit the canvas to the window |
 | `o` / `u` / `d` | open a file / open a URL / replay the built-in demo |
-| `?` / `q` | help / close |
+| `C-c h` / `q` | help / close |
 
 ## Checks
 
