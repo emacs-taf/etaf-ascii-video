@@ -4,11 +4,17 @@
     ".",
     "tests",
     "../../etaf",
+    "../../etaf-ui",
     "../../ebox",
     "../../ecss"
   ],
   "support": [],
   "cases": [
+    {
+      "name": "etaf-ascii-video-tests-help-stays-in-player",
+      "file": "tests/etaf-ascii-video-tests.el",
+      "purpose": "Both help entries open the shared searchable modal in the existing player, block playback keys and preserve playback through layered Escape."
+    },
     {
       "name": "etaf-ascii-video-tests-renders-ramp-frames",
       "file": "tests/etaf-ascii-video-tests.el",

@@ -77,7 +77,12 @@ defaults are 640x360 when ffprobe is unavailable.
 | `c` | toggle true-color half-block rendering |
 | `F` | fit to the window |
 | `o`, `u`, `d` | open a file / open a URL / demo |
-| `C-c h`, `q` | help / close |
+| `?`, `C-c h` | searchable help in the player |
+| `q` | close the player |
+
+Help uses ETAF UI's read-only modal and the player's dark palette. It does not
+split the window or control playback. `/` searches; Escape leaves search editing
+before closing help. Clicking outside also closes it and restores focus.
 
 `F` and `etaf-ascii-video-fit` reserve one row for the status line and refit
 the ETAF viewport before changing the grid. The same fitting runs

@@ -23,6 +23,11 @@
 
 ### Changed
 
+- `?` and `C-c h` open searchable help inside the player instead of a static
+  message. It uses the player's dark palette and concise binding labels;
+  Escape and outside clicks close it without changing playback. ETAF UI is
+  now a required dependency for the shared modal.
+
 - Decoding, pixel mapping, display pacing, Retina-sharp image frames and the
   audio sidecar moved to the framework's native `etaf-video` Component (see
   the ETAF manual and changelog).  This package is now the character player

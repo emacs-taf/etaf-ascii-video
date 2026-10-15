@@ -13,6 +13,7 @@
 
 (require 'cl-lib)
 (require 'etaf)
+(require 'etaf-ui)
 (require 'etaf-ascii-video-grid)
 
 (defconst etaf-ascii-video--buffer-name "*ASCII Video*"
@@ -49,52 +50,30 @@ can be raised for sharper, slower pictures.")
 
 (defvar etaf-ascii-video-mode-map
   (let ((map (make-sparse-keymap)))
-    (define-key map (kbd "SPC") #'etaf-ascii-video-toggle-playback)
-    (define-key map (kbd "n") #'etaf-ascii-video-step)
-    (define-key map (kbd "f") #'etaf-ascii-video--forward-command)
-    (define-key map (kbd "b") #'etaf-ascii-video--backward-command)
-    (define-key map (kbd "+") #'etaf-ascii-video--speed-up-command)
-    (define-key map (kbd "-") #'etaf-ascii-video--speed-down-command)
-    (define-key map (kbd "1") #'etaf-ascii-video--preset-command)
-    (define-key map (kbd "2") #'etaf-ascii-video--preset-command)
-    (define-key map (kbd "3") #'etaf-ascii-video--preset-command)
-    (define-key map (kbd "4") #'etaf-ascii-video--preset-command)
-    (define-key map (kbd "F") #'etaf-ascii-video-fit)
-    (define-key map (kbd "c") #'etaf-ascii-video--toggle-color-command)
-    (define-key map (kbd "o") #'etaf-ascii-video-open-file)
-    (define-key map (kbd "u") #'etaf-ascii-video-open-url)
-    (define-key map (kbd "d") #'etaf-ascii-video-demo)
-    (define-key map (kbd "C-c h") #'etaf-ascii-video--help-command)
-    (define-key map (kbd "q") #'etaf-ascii-video-close)
+    (dolist (binding '(("SPC" etaf-ascii-video-toggle-playback "播放／暂停")
+                       ("n" etaf-ascii-video-step "逐帧前进")
+                       ("f" etaf-ascii-video--forward-command "快进 5 秒")
+                       ("b" etaf-ascii-video--backward-command "后退 5 秒")
+                       ("+" etaf-ascii-video--speed-up-command "提高播放速度")
+                       ("-" etaf-ascii-video--speed-down-command "降低播放速度")
+                       ("1" etaf-ascii-video--preset-command "画布 64 列")
+                       ("2" etaf-ascii-video--preset-command "画布 96 列")
+                       ("3" etaf-ascii-video--preset-command "画布 128 列")
+                       ("4" etaf-ascii-video--preset-command "画布 176 列")
+                       ("F" etaf-ascii-video-fit "适配窗口")
+                       ("c" etaf-ascii-video--toggle-color-command "切换彩色字符")
+                       ("o" etaf-ascii-video-open-file "打开视频文件")
+                       ("u" etaf-ascii-video-open-url "打开视频网址")
+                       ("d" etaf-ascii-video-demo "播放演示")
+                       ("C-c h" etaf-help "查看快捷键")
+                       ("q" etaf-ascii-video-close "关闭播放器")))
+      (define-key map (kbd (car binding))
+                  (list 'menu-item (nth 2 binding) (nth 1 binding))))
     map)
   "Keymap of a buffer opened by `etaf-ascii-video-open'.")
 
 (defvar etaf-ascii-video--command-maps
-  (list
-   (cons 'etaf-ascii-video--player
-         (let ((map (make-sparse-keymap)))
-           ;; The renderer's minor-mode map owns these keys and wins over a
-           ;; major-mode map; an `emulation-mode-map-alists' entry wins over
-           ;; every minor mode, so the application replaces them here.
-           (set-keymap-parent map etaf-ascii-video-mode-map)
-           (define-key map (kbd "SPC") #'etaf-ascii-video-toggle-playback)
-           (define-key map (kbd "n") #'etaf-ascii-video-step)
-           (define-key map (kbd "f") #'etaf-ascii-video--forward-command)
-           (define-key map (kbd "b") #'etaf-ascii-video--backward-command)
-           (define-key map (kbd "+") #'etaf-ascii-video--speed-up-command)
-           (define-key map (kbd "-") #'etaf-ascii-video--speed-down-command)
-           (define-key map (kbd "1") #'etaf-ascii-video--preset-command)
-           (define-key map (kbd "2") #'etaf-ascii-video--preset-command)
-           (define-key map (kbd "3") #'etaf-ascii-video--preset-command)
-           (define-key map (kbd "4") #'etaf-ascii-video--preset-command)
-           (define-key map (kbd "F") #'etaf-ascii-video-fit)
-           (define-key map (kbd "c") #'etaf-ascii-video--toggle-color-command)
-           (define-key map (kbd "o") #'etaf-ascii-video-open-file)
-           (define-key map (kbd "u") #'etaf-ascii-video-open-url)
-           (define-key map (kbd "d") #'etaf-ascii-video-demo)
-           (define-key map (kbd "C-c h") #'etaf-ascii-video--help-command)
-           (define-key map (kbd "q") #'etaf-ascii-video-close)
-           map)))
+  (list (cons 'etaf-ascii-video--player etaf-ascii-video-mode-map))
   "Application bindings that must beat the renderer's own minor-mode map.
 The alist's key is `etaf-ascii-video--player', the buffer-local variable
 every application buffer owns, so the entry is active exactly there.")
@@ -224,11 +203,24 @@ The retained refs returned here are closed over by the application View."
           (etaf-ref (etaf-ascii-video--player-hud-text player)))
     player))
 
+(etaf-define-component etaf-ascii-video--shell (&key player)
+  "Provide the character player's dark palette to shared controls."
+  :setup
+  (etaf-theme-provide '(:ui-bg "#0B0C0E" :ui-fg "#C9CDD3"
+                        :ui-panel-bg "#171A20" :ui-panel-fg "#C9CDD3"
+                        :ui-panel-border "#343B48" :ui-muted-fg "#9BA5B4"
+                        :ui-accent "#90B4E8" :ui-accent-fg "#0B0C0E"
+                        :ui-button-secondary-fg "#90B4E8" :ui-button-secondary-bg "#253247"
+                        :ui-button-ghost-fg "#C9CDD3"))
+  :render (etaf-ascii-video--view player))
+
 (defun etaf-ascii-video--view (player)
   "Return the mountable View of PLAYER."
   (etaf-view
    (flex :flex-direction 'column :width '(vw 100)
          :on-direction #'etaf-ascii-video--direction
+         :aria-label "字符视频播放器"
+         :help "视频使用字符画布显示，不播放声音；彩色模式使用半块字符保留画面色彩。"
          :background-color "#0B0C0E" :color "#C9CDD3"
      (etaf-video :src (etaf-ascii-video--player-spec player)
                  :mode (if (eq (etaf-value (etaf-ascii-video--player-mode-ref player))
@@ -359,7 +351,7 @@ sources signal `user-error' before any process starts."
                             (set-display-table-slot table 'truncation ?\s)
                             table))
               (use-local-map etaf-ascii-video-mode-map)
-              (etaf-mount buffer (etaf-ascii-video--view player)))
+              (etaf-mount buffer (etaf-view (etaf-ascii-video--shell :player player))))
             (let ((display-buffer-overriding-action '((display-buffer-same-window))))
               (pop-to-buffer buffer))
             (when-let* ((shown (get-buffer-window buffer t)))
@@ -570,12 +562,6 @@ changing it, and signals `user-error' outside a player buffer."
     (etaf-ascii-video--player-set-mode
      player (if (eq (etaf-ascii-video--player-mode player) 'color) 'mono 'color))
     (etaf-ascii-video--player-render player)))
-
-(defun etaf-ascii-video--help-command ()
-  "Show the ASCII video key bindings."
-  (interactive)
-  (message (concat "ASCII video: SPC play/pause, n step, f/b +-5s, +/- speed, "
-                   "1-4 grid, c color, F fit, o open, u url, d demo, q close")))
 
 (provide 'etaf-ascii-video-app)
 ;;; etaf-ascii-video-app.el ends here

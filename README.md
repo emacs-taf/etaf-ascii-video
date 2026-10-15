@@ -39,7 +39,7 @@ A local video playing as true-color half blocks:
 | Requirement | Why | Check |
 | --- | --- | --- |
 | Emacs 29.1 or newer | the ETAF runtime | `emacs --version` |
-| `etaf`, `ebox`, `ecss` | the framework; each root entry must be on `load-path` | every checkout is readable |
+| `etaf`, `etaf-ui`, `ebox`, `ecss` | the framework; each root entry must be on `load-path` | every checkout is readable |
 | ffmpeg | decoding and downsampling | `ffmpeg -version` |
 | ffprobe | duration, frame rate and video size | `ffprobe -version` |
 
@@ -54,6 +54,7 @@ variables documented in ETAF's manual.
 (add-to-list 'load-path "/path/to/ecss")
 (add-to-list 'load-path "/path/to/ebox")
 (add-to-list 'load-path "/path/to/etaf")
+(add-to-list 'load-path "/path/to/etaf-ui")
 (add-to-list 'load-path "/path/to/etaf-ascii-video")
 (require 'etaf-ascii-video)
 
@@ -82,7 +83,12 @@ variables documented in ETAF's manual.
 | `c` | toggle true-color half-block rendering |
 | `F` | fit the canvas to the window |
 | `o` / `u` / `d` | open a file / open a URL / replay the built-in demo |
-| `C-c h` / `q` | help / close |
+| `?` / `C-c h` | searchable help inside the player |
+| `q` | close the player |
+
+Help is read-only and uses the player's dark palette. `/` searches its effective
+bindings; Escape leaves search editing before closing the modal. Clicking the
+dimmed background also closes it without changing playback.
 
 ## Checks
 
