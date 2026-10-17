@@ -39,5 +39,10 @@
 
 ### Fixed
 
+- The open prompt reads file names the way `find-file` does: a pasted
+  absolute or `~` path is accepted instead of being refused with
+  "(match required)" because it does not match the current directory's
+  completions.
+
 - The minibuffer and echo area borrow window lines without refitting the
   canvas: the player keeps the grid it committed until the prompt closes.

@@ -367,8 +367,12 @@ sources signal `user-error' before any process starts."
 
 ;;;###autoload
 (defun etaf-ascii-video-open-file (file)
-  "Play the local video FILE in the ASCII video player."
-  (interactive "fVideo file: ")
+  "Play the local video FILE in the ASCII video player.
+The prompt reads the name the way `find-file' does, so a pasted absolute or
+`~' path is accepted."
+  (interactive
+   (list (read-file-name "Video file: " nil default-directory
+                         (confirm-nonexistent-file-or-buffer))))
   (etaf-ascii-video-open (list :file file)))
 
 ;;;###autoload
