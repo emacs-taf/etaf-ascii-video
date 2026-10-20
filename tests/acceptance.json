@@ -51,6 +51,11 @@
       "purpose": "The documented keys drive the player through the command loop instead of the renderer's own keymap, and closing leaves no buffer."
     },
     {
+      "name": "etaf-ascii-video-tests-canvas-and-kill-follow-the-application",
+      "file": "tests/etaf-ascii-video-tests.el",
+      "purpose": "Unpainted canvas cells take the player's surface, killing the buffer releases the status timer like closing it, and closing outside a player leaves the current buffer alone."
+    },
+    {
       "name": "etaf-ascii-video-tests-color-half-blocks",
       "file": "tests/etaf-ascii-video-tests.el",
       "purpose": "Color mode publishes half-block cells with the predicted foreground and background colors per cell and switches back to density characters when disabled."

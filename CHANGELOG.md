@@ -23,6 +23,10 @@
 
 ### Changed
 
+- The player runs as an ETAF application: its keys are root keys of the View,
+  cells the canvas does not paint take the player's dark surface, and help
+  uses a complete dark palette. Requires ETAF 0.3.0 and ETAF UI 0.2.0.
+
 - `?` and `C-c h` open searchable help inside the player instead of a static
   message. It uses the player's dark palette and concise binding labels;
   Escape and outside clicks close it without changing playback. ETAF UI is
@@ -46,3 +50,9 @@
 
 - The minibuffer and echo area borrow window lines without refitting the
   canvas: the player keeps the grid it committed until the prompt closes.
+
+- Killing the player buffer stops its status timer like `q` does; the timer
+  used to keep running after the buffer was gone.
+
+- `etaf-ascii-video-close` outside a player buffer signals `user-error`
+  instead of killing the current buffer.

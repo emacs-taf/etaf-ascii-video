@@ -11,7 +11,7 @@ reads the lowercase `http_proxy` environment variable when a proxy is needed.
 file.  All three create one buffer named `*ASCII Video*` and reuse it: opening
 another source closes the previous player first.  `etaf-ascii-video-close`
 (also `q`) cancels the status timer, destroys the native session and unmounts
-the ETAF Runtime.
+the ETAF Runtime; killing the buffer releases the same resources.
 
 The player buffer hides its cursor, so no cursor frame flashes around the
 canvas.
@@ -84,10 +84,11 @@ Help uses ETAF UI's read-only modal and the player's dark palette. It does not
 split the window or control playback. `/` searches; Escape leaves search editing
 before closing help. Clicking outside also closes it and restores focus.
 
-`F` and `etaf-ascii-video-fit` reserve one row for the status line and refit
-the ETAF viewport before changing the grid. The same fitting runs
-automatically through `window-size-change-functions` when the window changes
-size, so a resized frame keeps a canvas that fits.
+`F` and `etaf-ascii-video-fit` reserve one row for the status line and fit
+the grid to the window. The same fitting runs automatically once the window
+settles at a new size, so a resized frame keeps a canvas that fits; a grid
+chosen through size hints, a preset or `etaf-ascii-video-set-grid` stays until
+then. Lines a minibuffer prompt borrows are not a resize.
 
 ## Sharp images and sound
 

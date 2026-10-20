@@ -11,7 +11,7 @@ control functions. No framework mechanism is re-implemented here.
 | Module | Owns |
 | --- | --- |
 | `etaf-ascii-video-grid` | aspect fitting of a video size into a character canvas |
-| `etaf-ascii-video-app` | player state (canvas, mode, speed, status), the View, the buffer, the keymap, window fitting and the public commands |
+| `etaf-ascii-video-app` | player state (canvas, mode, speed, status), the View and its root keys, the ETAF application, window fitting and the public commands |
 
 The root entry re-exports the supported subset; everything unlisted is
 internal.
@@ -19,10 +19,12 @@ internal.
 ## Data flow
 
 1. `etaf-ascii-video-open` normalizes and probes the source once through
-   `etaf-video-source-info`, chooses the render mode, fits a canvas to the
-   selected window and mounts a View with the native `etaf-video` Component
-   plus a status text Host.  Lines borrowed by a transient minibuffer are not
-   a resize; the committed grid stays until the prompt closes.
+   `etaf-video-source-info`, chooses the render mode and opens an ETAF
+   application (`etaf-app-open`) whose View holds the native `etaf-video`
+   Component plus a status text Host.  The application's fit function sizes
+   the canvas to the window before the View mounts and again after each
+   settled resize; an unchanged text area keeps the grid, and lines borrowed
+   by a transient minibuffer are not a resize.
 2. The Component owns the playback session: ffmpeg decodes at the canvas size,
    the session keeps only the newest complete frame, and each displayed frame
    is mapped to ramp characters or half-block cells and published through
@@ -33,9 +35,10 @@ internal.
    render mode and rate are View props (changing a prop restarts the session
    at the current position), while play/pause, step and seek call the
    Component's handle functions.
-5. `etaf-ascii-video-close` cancels the status timer and unmounts the Runtime,
-   which destroys the session. A failed open runs the same teardown, so no
-   partial player survives a `user-error`.
+5. Closing, through `etaf-ascii-video-close` or by killing the buffer, runs
+   the application's close function, which cancels the status timer, and then
+   unmounts the Runtime, which destroys the session. A failed open closes the
+   application the same way, so no partial player survives a `user-error`.
 
 ## Invariants
 

@@ -384,6 +384,39 @@ no buffer behind."
       (ignore-errors (delete-file log))
       (etaf-ascii-video-tests--cleanup))))
 
+(ert-deftest etaf-ascii-video-tests-canvas-and-kill-follow-the-application ()
+  "Unpainted cells take the player's surface and a killed buffer closes it.
+Killing the buffer releases what `q' releases, so no status timer outlives
+the player, and closing outside a player leaves the current buffer alone."
+  (etaf-ascii-video-tests--cleanup)
+  (let ((log (etaf-ascii-video-tests--log))
+        (timers (length timer-list)))
+    (unwind-protect
+        (etaf-ascii-video-tests--with-fixture
+         log (list "FAKE_FFMPEG_FRAMES=400" "FAKE_FFMPEG_INTERVAL=0.05"
+                   "FAKE_FFPROBE_DURATION=20.0" "FAKE_FFPROBE_FPS=20/1")
+         (with-temp-buffer
+           (should-error (etaf-ascii-video-close) :type 'user-error)
+           (should (buffer-live-p (current-buffer))))
+         (save-window-excursion
+           (let ((buffer (etaf-ascii-video-open
+                          (list :file etaf-ascii-video-tests--input
+                                :columns 16 :rows 4))))
+             (should (etaf-ascii-video-tests--wait
+                      (lambda ()
+                        (>= (plist-get (etaf-ascii-video-tests--state) :presented) 1))))
+             (let ((surface (with-current-buffer buffer
+                              (plist-get (car (last (alist-get 'default
+                                                               face-remapping-alist)))
+                                         :background))))
+               (should (equal surface "#0B0C0E")))
+             (kill-buffer buffer)
+             (should-not (get-buffer "*ASCII Video*"))
+             (should (etaf-ascii-video-tests--wait
+                      (lambda () (= (length timer-list) timers)) 2)))))
+      (ignore-errors (delete-file log))
+      (etaf-ascii-video-tests--cleanup))))
+
 (ert-deftest etaf-ascii-video-tests-color-half-blocks ()
   "Color mode publishes half-block cells with per-cell true colors.
 The fixture's RGB24 pattern makes each cell's foreground and background

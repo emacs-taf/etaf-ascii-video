@@ -2,8 +2,8 @@
 
 ;; SPDX-License-Identifier: GPL-3.0-or-later
 ;; Author: ETAF contributors
-;; Version: 0.1.0
-;; Package-Requires: ((emacs "29.1") (etaf "0.2.1") (etaf-ui "0.1.0"))
+;; Version: 0.1.1
+;; Package-Requires: ((emacs "29.1") (etaf "0.3.0") (etaf-ui "0.2.0"))
 ;; Keywords: multimedia, ui
 ;; URL: https://github.com/emacs-taf/etaf-ascii-video
 
@@ -13,7 +13,7 @@
 ;;
 ;; Load this package with (require 'etaf-ascii-video) after adding this
 ;; repository and the ETAF and Ebox roots to `load-path'.  The player shows a
-;; local video or HTTP(S) stream as characters inside an ETAF buffer.  The
+;; local video or HTTP(S) stream as characters in an ETAF application.  The
 ;; native `etaf-video' Component (see the ETAF manual) decodes the source and
 ;; publishes every frame through the retained Host content boundary; this
 ;; application owns the buffer, the fitted canvas size, the density and
@@ -25,7 +25,7 @@
 ;; `etaf-ascii-video-open', `etaf-ascii-video-open-file' and
 ;; `etaf-ascii-video-demo' create it, the functions below drive it,
 ;; `etaf-ascii-video-state' reports it as plain data, and
-;; `etaf-ascii-video-close' releases it.  The default keymap binds the same
+;; `etaf-ascii-video-close' releases it.  The player's keys call the same
 ;; commands: SPC play/pause, n step, f/b seek five seconds, +/- speed, 1-4
 ;; grid presets, c color, F fit, o open, u url, d demo, ? help and q close.
 ;; The decoded density ramp, display rate and decoder programs are the
@@ -72,7 +72,8 @@
 ;;;###autoload (autoload 'etaf-ascii-video-close "etaf-ascii-video" nil t)
 ;; Close the player in the current buffer.
 ;; The status timer is cancelled, the native session destroyed and the ETAF
-;; Runtime unmounted before the buffer is killed.
+;; Runtime unmounted before the buffer is killed; killing the buffer releases
+;; the same resources.  Outside a player buffer it signals `user-error'.
 ;;
 ;; Function: etaf-ascii-video-toggle-playback ()
 ;; Toggle the current player between playing and paused.
@@ -111,8 +112,9 @@
 ;;
 ;; Function: etaf-ascii-video-fit ()
 ;; Fit the current player's canvas to the window showing it.
-;; One row is reserved for the status line; the window is refitted through
-;; ETAF before the grid changes.
+;; One row is reserved for the status line.  A resized window refits the
+;; canvas by itself; a grid chosen through size hints, a preset or
+;; `etaf-ascii-video-set-grid' stays until the window changes size.
 ;;
 ;; Function: etaf-ascii-video-state ()
 ;; Return the current player's state as a detached plist.

@@ -3,8 +3,8 @@
 ;; SPDX-License-Identifier: GPL-3.0-or-later
 
 ;;; Commentary:
-;; The application face of the player: the mountable View over the native
-;; `etaf-video' Component and the status Host, the buffer keymap, window
+;; The application face of the player: the ETAF application around the
+;; native `etaf-video' Component and the status Host, its root keys, window
 ;; fitting and the public commands listed in the root entry.  Playback,
 ;; decoding and frame mapping belong to ETAF; this module keeps the canvas
 ;; size, the render mode, the status line and the user's keys.
@@ -48,56 +48,50 @@ so larger grids cost proportionally more per frame; 32 columns keeps color
 playback responsive (about 14 frames per second in a graphical session) and
 can be raised for sharper, slower pictures.")
 
-(defvar etaf-ascii-video-mode-map
-  (let ((map (make-sparse-keymap)))
-    (dolist (binding '(("SPC" etaf-ascii-video-toggle-playback "播放／暂停")
-                       ("n" etaf-ascii-video-step "逐帧前进")
-                       ("f" etaf-ascii-video--forward-command "快进 5 秒")
-                       ("b" etaf-ascii-video--backward-command "后退 5 秒")
-                       ("+" etaf-ascii-video--speed-up-command "提高播放速度")
-                       ("-" etaf-ascii-video--speed-down-command "降低播放速度")
-                       ("1" etaf-ascii-video--preset-command "画布 64 列")
-                       ("2" etaf-ascii-video--preset-command "画布 96 列")
-                       ("3" etaf-ascii-video--preset-command "画布 128 列")
-                       ("4" etaf-ascii-video--preset-command "画布 176 列")
-                       ("F" etaf-ascii-video-fit "适配窗口")
-                       ("c" etaf-ascii-video--toggle-color-command "切换彩色字符")
-                       ("o" etaf-ascii-video-open-file "打开视频文件")
-                       ("u" etaf-ascii-video-open-url "打开视频网址")
-                       ("d" etaf-ascii-video-demo "播放演示")
-                       ("C-c h" etaf-help "查看快捷键")
-                       ("q" etaf-ascii-video-close "关闭播放器")))
-      (define-key map (kbd (car binding))
-                  (list 'menu-item (nth 2 binding) (nth 1 binding))))
-    map)
-  "Keymap of a buffer opened by `etaf-ascii-video-open'.")
+(defconst etaf-ascii-video--bindings
+  '(("SPC" etaf-ascii-video-toggle-playback "播放／暂停")
+    ("n" etaf-ascii-video-step "逐帧前进")
+    ("f" etaf-ascii-video--forward-command "快进 5 秒")
+    ("b" etaf-ascii-video--backward-command "后退 5 秒")
+    ("+" etaf-ascii-video--speed-up-command "提高播放速度")
+    ("-" etaf-ascii-video--speed-down-command "降低播放速度")
+    ("1" etaf-ascii-video--preset-command "画布 64 列")
+    ("2" etaf-ascii-video--preset-command "画布 96 列")
+    ("3" etaf-ascii-video--preset-command "画布 128 列")
+    ("4" etaf-ascii-video--preset-command "画布 176 列")
+    ("F" etaf-ascii-video-fit "适配窗口")
+    ("c" etaf-ascii-video--toggle-color-command "切换彩色字符")
+    ("o" etaf-ascii-video-open-file "打开视频文件")
+    ("u" etaf-ascii-video-open-url "打开视频网址")
+    ("d" etaf-ascii-video-demo "播放演示")
+    ("C-c h" etaf-help "查看快捷键")
+    ("q" etaf-ascii-video-close "关闭播放器"))
+  "The player's root keys: (KEY COMMAND LABEL) entries.")
 
-(defvar etaf-ascii-video--command-maps
-  (list (cons 'etaf-ascii-video--player etaf-ascii-video-mode-map))
-  "Application bindings that must beat the renderer's own minor-mode map.
-The alist's key is `etaf-ascii-video--player', the buffer-local variable
-every application buffer owns, so the entry is active exactly there.")
-
-(defvar-local etaf-ascii-video--player nil
-  "Player owned by the current application buffer.")
-
-(defvar etaf-ascii-video--size-hook-installed nil
-  "Whether the window size hook was installed.")
+(defconst etaf-ascii-video--background "#0B0C0E"
+  "Surface color of the player, also used for the cells it does not paint.")
 
 (cl-defstruct (etaf-ascii-video--player (:constructor etaf-ascii-video--player--make))
   "Application state for one ASCII video buffer.
 Playback lives in the native `etaf-video' session addressed by HANDLE; this
 record owns the canvas size, the render mode, the playback rate, the status
-line and its refresh timer."
+line and its refresh timer.  WINDOW-SIZE is the window text area the grid
+was last fitted to; EXPLICIT-GRID keeps a caller's grid until that window
+changes size."
   buffer spec mode handle
-  columns rows speed window-rows
+  columns rows speed window-size explicit-grid
   columns-ref rows-ref mode-ref speed-ref
   hud-text hud-text-ref hud-timer
   sample sample-fps)
 
+(defun etaf-ascii-video--buffer-player ()
+  "Return the player of the current buffer's application, or nil."
+  (let ((state (etaf-app-state)))
+    (and (etaf-ascii-video--player-p state) state)))
+
 (defun etaf-ascii-video--current ()
   "Return the current buffer's player, or signal `user-error'."
-  (or etaf-ascii-video--player
+  (or (etaf-ascii-video--buffer-player)
       (user-error "Not an etaf-ascii-video buffer")))
 
 (defun etaf-ascii-video--clock (seconds)
@@ -187,11 +181,11 @@ the canvas width."
          (setf (etaf-ascii-video--player-hud-timer player) nil))
        (message "etaf-ascii-video: %s" (error-message-string problem))))))
 
-(cl-defun etaf-ascii-video--player-create (buffer spec mode columns rows speed)
-  "Create a player for BUFFER, SPEC, MODE, COLUMNS, ROWS and SPEED.
+(defun etaf-ascii-video--player-create (spec mode columns rows speed)
+  "Create a player for SPEC, MODE, COLUMNS, ROWS and SPEED.
 The retained refs returned here are closed over by the application View."
   (let ((player (etaf-ascii-video--player--make
-                 :buffer buffer :spec spec :mode mode
+                 :spec spec :mode mode
                  :handle (make-symbol "etaf-ascii-video")
                  :columns columns :rows rows :speed speed
                  :hud-text "paused 00:00/--:--")))
@@ -203,25 +197,30 @@ The retained refs returned here are closed over by the application View."
           (etaf-ref (etaf-ascii-video--player-hud-text player)))
     player))
 
+(defun etaf-ascii-video--theme ()
+  "Return the player's dark Theme for shared controls such as help."
+  ;; Ghost buttons keep the body text color instead of the muted one.
+  (append '(:ui-button-ghost-fg "#C9CDD3")
+          (etaf-ui-theme-tokens
+           (list :bg etaf-ascii-video--background :fg "#C9CDD3"
+                 :panel "#171A20" :border "#343B48" :muted "#9BA5B4"
+                 :accent "#90B4E8" :accent-fg etaf-ascii-video--background
+                 :accent-soft "#253247"))))
+
 (etaf-define-component etaf-ascii-video--shell (&key player)
   "Provide the character player's dark palette to shared controls."
   :setup
-  (etaf-theme-provide '(:ui-bg "#0B0C0E" :ui-fg "#C9CDD3"
-                        :ui-panel-bg "#171A20" :ui-panel-fg "#C9CDD3"
-                        :ui-panel-border "#343B48" :ui-muted-fg "#9BA5B4"
-                        :ui-accent "#90B4E8" :ui-accent-fg "#0B0C0E"
-                        :ui-button-secondary-fg "#90B4E8" :ui-button-secondary-bg "#253247"
-                        :ui-button-ghost-fg "#C9CDD3"))
-  :render (etaf-ascii-video--view player))
+  (etaf-theme-provide (etaf-ascii-video--theme))
+  :render (etaf-ascii-video--body player))
 
-(defun etaf-ascii-video--view (player)
-  "Return the mountable View of PLAYER."
+(defun etaf-ascii-video--body (player)
+  "Return the canvas and status line of PLAYER."
   (etaf-view
    (flex :flex-direction 'column :width '(vw 100)
          :on-direction #'etaf-ascii-video--direction
          :aria-label "字符视频播放器"
          :help "视频使用字符画布显示，不播放声音；彩色模式使用半块字符保留画面色彩。"
-         :background-color "#0B0C0E" :color "#C9CDD3"
+         :background-color etaf-ascii-video--background :color "#C9CDD3"
      (etaf-video :src (etaf-ascii-video--player-spec player)
                  :mode (if (eq (etaf-value (etaf-ascii-video--player-mode-ref player))
                               'color)
@@ -236,20 +235,31 @@ The retained refs returned here are closed over by the application View."
        (text :id "hud" :ref etaf-ascii-video--hud-ref
              (expr (etaf-value (etaf-ascii-video--player-hud-text-ref player))))))))
 
-(defun etaf-ascii-video--window-size-changed (frame)
-  "Refit every ASCII video shown on FRAME after a window resize.
-Lines borrowed by the minibuffer keep the grid the player committed."
-  (dolist (window (window-list frame))
-    (with-current-buffer (window-buffer window)
-      (when etaf-ascii-video--player
-        (unless (etaf-transient-space-borrowed-p
-                 window (etaf-ascii-video--player-window-rows
-                         etaf-ascii-video--player))
-          (etaf-ascii-video--refit etaf-ascii-video--player window))))))
+(defun etaf-ascii-video--view (player)
+  "Return the mountable View of PLAYER."
+  (etaf-view (etaf-ascii-video--shell :player player
+                                      :keys etaf-ascii-video--bindings)))
+
+(defun etaf-ascii-video--body-size (window)
+  "Return WINDOW's text area as (COLUMNS . ROWS)."
+  (cons (window-body-width window) (window-body-height window)))
+
+(defun etaf-ascii-video--fit (player window)
+  "Fit PLAYER's canvas after WINDOW settled.
+Only a changed text area refits, so a grid the caller chose stays until the
+window is resized; the first fit keeps an explicit grid from the source.
+Lines borrowed by a transient minibuffer never reach this function."
+  (let ((size (etaf-ascii-video--body-size window)))
+    (cond ((and (null (etaf-ascii-video--player-window-size player))
+                (etaf-ascii-video--player-explicit-grid player))
+           (setf (etaf-ascii-video--player-window-size player) size))
+          ((not (equal size (etaf-ascii-video--player-window-size player)))
+           (etaf-ascii-video--refit player window)))))
 
 (defun etaf-ascii-video--refit (player window)
   "Fit PLAYER's canvas grid to WINDOW; the mount follows the window itself."
-  (setf (etaf-ascii-video--player-window-rows player) (window-body-height window))
+  (setf (etaf-ascii-video--player-window-size player)
+        (etaf-ascii-video--body-size window))
   (let* ((spec (etaf-ascii-video--player-spec player))
          (grid (etaf-ascii-video--window-grid
                 window (etaf-ascii-video--aspect spec)
@@ -286,16 +296,12 @@ Lines borrowed by the minibuffer keep the grid the player committed."
   (etaf-set-value (etaf-ascii-video--player-speed-ref player) speed))
 
 (defun etaf-ascii-video--player-close (player)
-  "Release PLAYER's status timer and buffer state."
+  "Stop PLAYER's status timer.
+The application runs this once however the buffer goes away; unmounting
+afterwards destroys the native session and its producer."
   (when-let* ((timer (etaf-ascii-video--player-hud-timer player)))
     (cancel-timer timer)
     (setf (etaf-ascii-video--player-hud-timer player) nil)))
-
-(defun etaf-ascii-video--install-size-hook ()
-  "Install the application's window size hook once."
-  (unless etaf-ascii-video--size-hook-installed
-    (add-hook 'window-size-change-functions #'etaf-ascii-video--window-size-changed)
-    (setq etaf-ascii-video--size-hook-installed t)))
 
 ;;;###autoload
 (defun etaf-ascii-video-open (&optional source)
@@ -318,52 +324,40 @@ sources signal `user-error' before any process starts."
                   mode))
     (unless (and (numberp speed) (> speed 0))
       (user-error "Playback speed must be a positive number: %S" speed))
-    (when (get-buffer etaf-ascii-video--buffer-name)
-      (with-current-buffer (get-buffer etaf-ascii-video--buffer-name)
-        (when etaf-ascii-video--player
-          (etaf-ascii-video-close))))
-    (let* ((buffer (get-buffer-create etaf-ascii-video--buffer-name))
-           (window (selected-window))
-           (grid (if (and (integerp (plist-get hints :columns))
-                          (integerp (plist-get hints :rows)))
-                     (cons (plist-get hints :columns) (plist-get hints :rows))
-                   (etaf-ascii-video--window-grid
-                    window (etaf-ascii-video--aspect spec)
-                    (and (eq mode 'color) etaf-ascii-video-color-columns))))
-           (player (etaf-ascii-video--player-create
-                    buffer spec mode (car grid) (cdr grid) speed)))
-      (condition-case problem
-          (progn
-            (with-current-buffer buffer
-              (setq-local etaf-ascii-video--player player)
-              (setq-local truncate-lines t)
-              (setq-local auto-hscroll-mode nil)
-              ;; A video frame owns the whole canvas; a bar or box cursor over
-              ;; an image cell would flash a border around the picture.
-              (setq-local cursor-type nil)
-              (setq-local emulation-mode-map-alists
-                          (cons 'etaf-ascii-video--command-maps
-                                (remq 'etaf-ascii-video--command-maps
-                                      emulation-mode-map-alists)))
-              (setq-local buffer-display-table
-                          (let ((table (copy-sequence (or standard-display-table
-                                                          (make-display-table)))))
-                            (set-display-table-slot table 'truncation ?\s)
-                            table))
-              (use-local-map etaf-ascii-video-mode-map)
-              (etaf-mount buffer (etaf-view (etaf-ascii-video--shell :player player))))
-            (let ((display-buffer-overriding-action '((display-buffer-same-window))))
-              (pop-to-buffer buffer))
-            (when-let* ((shown (get-buffer-window buffer t)))
-              (set-window-hscroll shown 0))
-            (etaf-ascii-video--install-size-hook)
-            (setf (etaf-ascii-video--player-hud-timer player)
-                  (run-at-time 0.0 etaf-ascii-video--hud-interval
-                               #'etaf-ascii-video--player-tick player))
-            buffer)
-        ((error)
-         (etaf-ascii-video--teardown buffer player)
-         (signal (car problem) (cdr problem)))))))
+    (let* ((explicit (and (integerp (plist-get hints :columns))
+                          (integerp (plist-get hints :rows))))
+           ;; Without size hints the first fit replaces this grid with one
+           ;; that fills the window.
+           (columns (if explicit (plist-get hints :columns) 64))
+           (rows (if explicit
+                     (plist-get hints :rows)
+                   (etaf-ascii-video--rows-for-columns
+                    (etaf-ascii-video--aspect spec) columns)))
+           (player (etaf-ascii-video--player-create spec mode columns rows speed)))
+      (setf (etaf-ascii-video--player-explicit-grid player) explicit)
+      (let ((buffer
+             (etaf-app-open
+              etaf-ascii-video--buffer-name (etaf-ascii-video--view player)
+              :state player
+              :background etaf-ascii-video--background
+              ;; The canvas owns every cell; a bar or box cursor would flash
+              ;; a border over the picture.
+              :cursor nil
+              :mode-line t
+              :on-fit (lambda (window) (etaf-ascii-video--fit player window))
+              :on-close (lambda () (etaf-ascii-video--player-close player)))))
+        (setf (etaf-ascii-video--player-buffer player) buffer)
+        (condition-case problem
+            (progn
+              (when-let* ((shown (get-buffer-window buffer t)))
+                (set-window-hscroll shown 0))
+              (setf (etaf-ascii-video--player-hud-timer player)
+                    (run-at-time 0.0 etaf-ascii-video--hud-interval
+                                 #'etaf-ascii-video--player-tick player))
+              buffer)
+          ((error)
+           (etaf-app-close buffer)
+           (signal (car problem) (cdr problem))))))))
 
 ;;;###autoload
 (defun etaf-ascii-video-open-file (file)
@@ -390,23 +384,12 @@ connection is retried up to five seconds.  The audio track is not played."
   (interactive)
   (etaf-ascii-video-open '(:demo)))
 
-(defun etaf-ascii-video--teardown (buffer player)
-  "Release PLAYER and close BUFFER without signaling."
-  (when player
-    (ignore-errors (etaf-ascii-video--player-close player)))
-  (when (buffer-live-p buffer)
-    (with-current-buffer buffer
-      (setq-local etaf-ascii-video--player nil)
-      (ignore-errors
-        (when-let* ((runtime (etaf-runtime-for-buffer buffer)))
-          (etaf-unmount runtime)))
-      (kill-buffer buffer))))
-
 (defun etaf-ascii-video-close ()
-  "Close the ASCII video player in the current buffer."
+  "Close the ASCII video player in the current buffer.
+Signal `user-error' outside a player buffer."
   (interactive)
-  (etaf-ascii-video--teardown (current-buffer) etaf-ascii-video--player)
-  t)
+  (etaf-ascii-video--current)
+  (etaf-app-close))
 
 (defun etaf-ascii-video-toggle-playback ()
   "Toggle the current player between playing and paused."
